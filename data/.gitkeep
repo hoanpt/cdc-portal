@@ -1,0 +1,2 @@
+# Thư mục này chứa database SQLite và các bản backup
+# File này (.gitkeep) chỉ để Git track thư mục — KHÔNG commit .db file vào đây

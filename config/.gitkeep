@@ -1,0 +1,3 @@
+# Đặt Google Drive Service Account key vào đây
+# Tên file mặc định: google-drive-key.json
+# Thư mục này và toàn bộ nội dung đã được thêm vào .gitignore — KHÔNG commit key vào Git
