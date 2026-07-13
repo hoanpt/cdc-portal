@@ -65,11 +65,10 @@ export async function GET(request) {
     const resolved = byStatus.completed;
     const unresolved = total - resolved;
 
-    // Lấy thống kê theo ngày (7 ngày gần nhất)
     const last7Days = await db.all(`
-      SELECT date(submitted_at, 'localtime') as day, COUNT(*) as count
+      SELECT submitted_at::date as day, COUNT(*) as count
       FROM applications
-      WHERE submitted_at >= datetime('now', 'localtime', '-7 days')
+      WHERE submitted_at >= NOW() - INTERVAL '7 days'
       GROUP BY day
       ORDER BY day
     `);

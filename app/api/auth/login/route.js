@@ -37,7 +37,7 @@ export async function POST(request) {
     // Cập nhật last_login — dùng parameterized query để tránh SQL injection
     try {
       await db.run(
-        `UPDATE accounts SET last_login = datetime('now','localtime') WHERE id = ?`,
+        `UPDATE accounts SET last_login = NOW() WHERE id = ?`,
         account.id
       );
     } catch(e) {

@@ -4,6 +4,7 @@ import path from 'path';
 import getDb from '@/lib/db';
 import { sendSubmitConfirmEmail } from '@/lib/email';
 import { verifyToken } from '@/lib/auth';
+import { isDriveEnabled, createApplicationFolder, uploadFileToDrive } from '@/lib/drive';
 
 export const config = { api: { bodyParser: false } };
 
@@ -92,7 +93,7 @@ export async function POST(request) {
     const id = formData.get('id') || generateId();
     const submittedAt = new Date().toISOString();
 
-    // Lưu files vào local storage
+    // Lưu files vào local storage & Google Drive
     const filesInfo = [];
     const uploadDir = path.join(process.cwd(), 'public', 'uploads');
     if (!fs.existsSync(uploadDir)) {
@@ -109,6 +110,18 @@ export async function POST(request) {
       ['BienLaiThanhToan', filePayment]
     ];
 
+    // Tạo thư mục hồ sơ trên Google Drive nếu Drive được bật
+    const driveEnabled = isDriveEnabled();
+    let gdriveFolderId = null;
+    if (driveEnabled) {
+      try {
+        console.log(`[GoogleDrive] Khởi tạo thư mục cho hồ sơ ${id}...`);
+        gdriveFolderId = await createApplicationFolder(id);
+      } catch (err) {
+        console.error('[GoogleDrive] Lỗi tạo thư mục hồ sơ:', err.message);
+      }
+    }
+
     for (const [key, file] of filesToUpload) {
       if (!file || !file.name || typeof file === 'string') continue;
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -116,7 +129,25 @@ export async function POST(request) {
       const filename = `${id}_${Date.now()}_${key}_${safeName}`;
       const destPath = path.join(uploadDir, filename);
       
+      // Ghi file local
       await fs.promises.writeFile(destPath, buffer);
+      
+      let driveId = null;
+      let driveViewLink = null;
+
+      // Upload file lên thư mục Google Drive của hồ sơ
+      if (gdriveFolderId) {
+        try {
+          console.log(`[GoogleDrive] Đang upload file đính kèm: ${filename}`);
+          const driveResult = await uploadFileToDrive(destPath, filename, file.type, gdriveFolderId);
+          if (driveResult) {
+            driveId = driveResult.id;
+            driveViewLink = driveResult.webViewLink;
+          }
+        } catch (err) {
+          console.error(`[GoogleDrive] Lỗi upload file ${filename}:`, err.message);
+        }
+      }
       
       filesInfo.push({
         label: key,
@@ -124,8 +155,8 @@ export async function POST(request) {
         mimeType: file.type,
         size: file.size,
         localPath: `/uploads/${filename}`,
-        driveId: null,
-        driveViewLink: null
+        driveId,
+        driveViewLink
       });
     }
 
@@ -136,7 +167,7 @@ export async function POST(request) {
     `, 
       id, submittedAt, name, cccd, dob || null, gender || null, phone,
       email || null, address || null, receiveMethod, notes,
-      JSON.stringify(filesInfo), null
+      JSON.stringify(filesInfo), gdriveFolderId
     );
 
     // Log trạng thái ban đầu
@@ -153,7 +184,7 @@ export async function POST(request) {
       success: true,
       id,
       message: 'Hồ sơ đã được tiếp nhận thành công',
-      driveEnabled: false,
+      driveEnabled,
       emailSent: emailResult.sent
     }, { status: 201 });
   } catch (err) {
