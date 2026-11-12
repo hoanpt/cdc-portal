@@ -15,6 +15,13 @@ export async function POST(request, { params }) {
     const token = verifyToken(match[1]);
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    // Cán bộ thu phí không có quyền cấp chứng nhận ở Bước 2
+    if (token.role === 'accountant') {
+      return NextResponse.json({ 
+        error: 'Tài khoản Thu phí không có quyền thực hiện Bước 2 (cấp chứng nhận). Chức năng này dành riêng cho Cán bộ Khoa PCBTN.' 
+      }, { status: 403 });
+    }
+
     const { id } = await params;
     const formData = await request.formData();
     const file = formData.get('file_certificate');

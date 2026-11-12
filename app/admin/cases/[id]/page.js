@@ -28,6 +28,7 @@ export default function CaseDetailPage({ params }) {
   const [newStatus, setNewStatus] = useState('');
   const [statusNote, setStatusNote] = useState('');
   const [updating, setUpdating] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Kế toán state
   const [invoiceFile, setInvoiceFile] = useState(null);
@@ -45,7 +46,15 @@ export default function CaseDetailPage({ params }) {
 
   useEffect(() => {
     loadApp();
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.user) setCurrentUser(data.user); })
+      .catch(() => {});
   }, [id]);
+
+  const isAccountant = currentUser?.role === 'accountant' || currentUser?.username === 'lethimyphuong';
+  const isStaff = currentUser?.role === 'staff';
+  const isAdmin = currentUser?.role === 'admin';
 
   async function loadApp() {
     setLoading(true);
@@ -67,6 +76,11 @@ export default function CaseDetailPage({ params }) {
 
   // Kế toán: Xác nhận thu tiền & Xuất HĐĐT chuyển Khoa PCBTN
   async function confirmPaymentAndTransfer() {
+    if (isStaff) {
+      alert('Chức năng xác nhận thu tiền và xuất HĐĐT (Bước 1) dành cho Kế toán thu phí (Lê Thị Mỹ Phượng).');
+      return;
+    }
+
     if (!invoiceNo.trim() && !invoiceFile) {
       if (!confirm('Bạn chưa nhập Số HĐĐT hoặc chưa đính kèm file HĐĐT. Bạn có chắc chắn muốn xác nhận thu tiền và chuyển qua Khoa PCBTN không?')) {
         return;
@@ -79,7 +93,7 @@ export default function CaseDetailPage({ params }) {
       if (invoiceFile) fd.append('file_invoice', invoiceFile);
       fd.append('invoice_no', invoiceNo);
       fd.append('notes', invoiceNotes);
-      fd.append('issuer_name', invoiceIssuer);
+      fd.append('issuer_name', currentUser?.fullName || invoiceIssuer);
 
       const res = await fetch(`/api/applications/${id}/invoice`, {
         method: 'POST',
@@ -101,6 +115,11 @@ export default function CaseDetailPage({ params }) {
 
   // Khoa PCBTN: Phân công cán bộ
   async function assignOfficer(officer) {
+    if (isAccountant) {
+      alert('Tài khoản Thu phí không có quyền phân công cán bộ Khoa PCBTN. Thao tác này thuộc thẩm quyền của Khoa PCBTN.');
+      return;
+    }
+
     setSelectedOfficer(officer);
     try {
       const res = await fetch(`/api/applications/${id}`, {
@@ -118,6 +137,11 @@ export default function CaseDetailPage({ params }) {
 
   // Khoa PCBTN: Đính kèm Giấy chứng nhận và hoàn tất trả hồ sơ cho KH
   async function completeAndReturnToCustomer() {
+    if (isAccountant) {
+      alert('Tài khoản Thu phí chỉ thực hiện Bước 1 (xác nhận tiền & xuất HĐĐT). Bước 2 (cấp chứng nhận) thuộc thẩm quyền của Cán bộ Khoa PCBTN.');
+      return;
+    }
+
     if (!certFile && (!app.certificate_json || !app.certificate_json.url)) {
       alert('Vui lòng chọn file bản scan Giấy chứng nhận (PDF/JPG/PNG) trước khi gửi trả cho khách hàng');
       return;
@@ -211,6 +235,12 @@ export default function CaseDetailPage({ params }) {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {currentUser && (
+            <span style={{ fontSize: 13, color: '#93c5fd', background: 'rgba(30,58,138,0.5)', padding: '5px 12px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="fa-solid fa-user-circle" />
+              {currentUser.fullName || currentUser.username} ({isAccountant ? 'Kế toán thu phí' : isStaff ? 'Khoa PCBTN' : 'Quản trị viên'})
+            </span>
+          )}
           <span className={`badge ${statusInfo.cls}`} style={{ fontSize: 13, padding: '6px 14px' }}>
             {statusInfo.label}
           </span>
@@ -327,7 +357,7 @@ export default function CaseDetailPage({ params }) {
           </div>
 
           {/* QUY TRÌNH BƯỚC 1: KẾ TOÁN THU PHÍ (Lê Thị Mỹ Phượng) */}
-          <div className="card" style={{ border: '2px solid #3b82f6' }}>
+          <div className="card" style={{ border: '2px solid #3b82f6', opacity: isStaff ? 0.85 : 1 }}>
             <div className="card-header" style={{ background: '#eff6ff' }}>
               <h3 style={{ color: '#1d4ed8' }}>
                 <i className="fa-solid fa-cash-register" style={{ marginRight: 8 }} />
@@ -336,9 +366,24 @@ export default function CaseDetailPage({ params }) {
               <span style={{ fontSize: 12, color: '#1e40af', fontWeight: 600 }}>Cán bộ: Lê Thị Mỹ Phượng</span>
             </div>
             <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                Kế toán kiểm tra tiền tài khoản BIDV <strong>5611147422</strong>. Sau khi có tiền, xuất HĐĐT, đính kèm file vào đây và bấm nút bên dưới để chuyển tiếp qua Khoa PCBTN.
-              </p>
+              {isStaff ? (
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', color: '#1e40af', fontSize: 13 }}>
+                  <i className="fa-solid fa-circle-info" style={{ marginRight: 6 }} />
+                  Bước 1 do <strong>Kế toán thu phí (Lê Thị Mỹ Phượng)</strong> phụ trách. Cán bộ Khoa PCBTN thực hiện Bước 2 sau khi kế toán xác nhận tiền.
+                </div>
+              ) : (
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+                  Kế toán kiểm tra tiền tài khoản BIDV <strong>5611147422</strong>. Sau khi có tiền, xuất HĐĐT, đính kèm file vào đây và bấm nút bên dưới để chuyển tiếp qua Khoa PCBTN.
+                </p>
+              )}
+
+              {app.payment_confirmed ? (
+                <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, padding: '10px 14px', color: '#065f46', fontSize: 13, fontWeight: 500 }}>
+                  <i className="fa-solid fa-circle-check" style={{ marginRight: 6, color: '#10b981' }} />
+                  Đã xác nhận thu 85.000 VNĐ vào tài khoản BIDV 5611147422 và chuyển giao hồ sơ qua Khoa PCBTN.
+                  {app.invoice_no && <span> (HĐĐT: <strong>{app.invoice_no}</strong>)</span>}
+                </div>
+              ) : null}
 
               <div className="form-group">
                 <label className="form-label">Số Hóa đơn điện tử (nếu có)</label>
@@ -346,7 +391,8 @@ export default function CaseDetailPage({ params }) {
                   className="form-control" 
                   placeholder="Ví dụ: 0012345" 
                   value={invoiceNo} 
-                  onChange={e => setInvoiceNo(e.target.value)} 
+                  onChange={e => setInvoiceNo(e.target.value)}
+                  disabled={isStaff}
                 />
               </div>
 
@@ -357,6 +403,7 @@ export default function CaseDetailPage({ params }) {
                   type="file" 
                   accept="application/pdf,image/*" 
                   onChange={e => setInvoiceFile(e.target.files[0])} 
+                  disabled={isStaff}
                 />
                 {app.invoice_file_url && !invoiceFile && (
                   <div style={{ fontSize: 12, marginTop: 4, color: 'var(--success)' }}>
@@ -372,24 +419,35 @@ export default function CaseDetailPage({ params }) {
                   placeholder="Ghi chú thêm về giao dịch chuyển khoản..." 
                   value={invoiceNotes} 
                   onChange={e => setInvoiceNotes(e.target.value)} 
+                  disabled={isStaff}
                 />
               </div>
 
-              <button 
-                className="btn btn-primary" 
-                onClick={confirmPaymentAndTransfer} 
-                disabled={savingInvoice}
-                style={{ background: '#2563eb' }}
-              >
-                {savingInvoice ? <><span className="spinner" /> Đang lưu...</> : (
-                  <><i className="fa-solid fa-arrow-right" /> Xác nhận có tiền, đính kèm HĐĐT &amp; Chuyển Khoa PCBTN</>
-                )}
-              </button>
+              {isStaff ? (
+                <button 
+                  className="btn" 
+                  disabled={true}
+                  style={{ background: '#e2e8f0', color: '#64748b', cursor: 'not-allowed' }}
+                >
+                  <i className="fa-solid fa-lock" /> Dành riêng cho Kế toán thu phí
+                </button>
+              ) : (
+                <button 
+                  className="btn btn-primary" 
+                  onClick={confirmPaymentAndTransfer} 
+                  disabled={savingInvoice}
+                  style={{ background: '#2563eb' }}
+                >
+                  {savingInvoice ? <><span className="spinner" /> Đang lưu...</> : (
+                    <><i className="fa-solid fa-arrow-right" /> {app.payment_confirmed ? 'Cập nhật lại HĐĐT & Chuyển Khoa PCBTN' : 'Xác nhận có tiền, đính kèm HĐĐT & Chuyển Khoa PCBTN'}</>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
           {/* QUY TRÌNH BƯỚC 2: KHOA PCBTN (Cấp giấy chứng nhận) */}
-          <div className="card" style={{ border: '2px solid #10b981' }}>
+          <div className="card" style={{ border: '2px solid #10b981', opacity: isAccountant ? 0.75 : 1 }}>
             <div className="card-header" style={{ background: '#ecfdf5' }}>
               <h3 style={{ color: '#047857' }}>
                 <i className="fa-solid fa-certificate" style={{ marginRight: 8 }} />
@@ -398,9 +456,26 @@ export default function CaseDetailPage({ params }) {
               <span style={{ fontSize: 12, color: '#065f46', fontWeight: 600 }}>Khoa PCBTN</span>
             </div>
             <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                Cán bộ Khoa PCBTN đối chiếu lịch sử tiêm, đính kèm Giấy chứng nhận bản scan và gửi trả cho khách hàng (kèm cả Hóa đơn điện tử).
-              </p>
+              {isAccountant ? (
+                <div style={{ background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, padding: '12px 16px', color: '#92400e', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <i className="fa-solid fa-lock" style={{ fontSize: 22, color: '#d97706', flexShrink: 0 }} />
+                  <div>
+                    <strong>Phân quyền nghiệp vụ:</strong> Bước 2 (đối chiếu tiêm chủng, đính kèm Giấy chứng nhận và trả kết quả cho khách hàng) thuộc thẩm quyền của <strong>Cán bộ Khoa PCBTN</strong>.
+                    <br />Tài khoản thu phí (Lê Thị Mỹ Phượng) chỉ thực hiện Bước 1 (xác nhận tiền &amp; xuất HĐĐT) và không có quyền can thiệp Bước 2.
+                  </div>
+                </div>
+              ) : (
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+                  Cán bộ Khoa PCBTN đối chiếu lịch sử tiêm, đính kèm Giấy chứng nhận bản scan và gửi trả cho khách hàng (kèm cả Hóa đơn điện tử).
+                </p>
+              )}
+
+              {isStaff && !app.payment_confirmed && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: 8, padding: '10px 14px', color: '#b45309', fontSize: 13 }}>
+                  <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 6 }} />
+                  Lưu ý: Hồ sơ này đang chờ Kế toán xác nhận đã nhận 85.000 VNĐ ở Bước 1.
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">Cán bộ Khoa PCBTN tiếp nhận &amp; xử lý <span className="required">*</span></label>
@@ -409,6 +484,7 @@ export default function CaseDetailPage({ params }) {
                   value={selectedOfficer} 
                   onChange={e => assignOfficer(e.target.value)}
                   style={{ fontWeight: 600 }}
+                  disabled={isAccountant}
                 >
                   <option value="">— Chọn cán bộ phụ trách —</option>
                   {PCBTN_OFFICERS.map(name => (
@@ -424,6 +500,7 @@ export default function CaseDetailPage({ params }) {
                   type="file" 
                   accept="application/pdf,image/*" 
                   onChange={e => setCertFile(e.target.files[0])} 
+                  disabled={isAccountant}
                 />
                 {app.certificate_json?.url && !certFile && (
                   <div style={{ fontSize: 12, marginTop: 4, color: 'var(--success)' }}>
@@ -439,19 +516,30 @@ export default function CaseDetailPage({ params }) {
                   placeholder="Ví dụ: Giấy chứng nhận đã được cấp hợp lệ..." 
                   value={certNotes} 
                   onChange={e => setCertNotes(e.target.value)} 
+                  disabled={isAccountant}
                 />
               </div>
 
-              <button 
-                className="btn btn-success" 
-                onClick={completeAndReturnToCustomer} 
-                disabled={uploadingCert}
-                style={{ background: '#059669' }}
-              >
-                {uploadingCert ? <><span className="spinner" /> Đang gửi kết quả...</> : (
-                  <><i className="fa-solid fa-paper-plane" /> Hoàn tất &amp; Gửi trả kết quả cho Khách hàng</>
-                )}
-              </button>
+              {isAccountant ? (
+                <button 
+                  className="btn" 
+                  disabled={true}
+                  style={{ background: '#e2e8f0', color: '#64748b', cursor: 'not-allowed', padding: '10px 16px' }}
+                >
+                  <i className="fa-solid fa-lock" /> Dành riêng cho Cán bộ Khoa PCBTN
+                </button>
+              ) : (
+                <button 
+                  className="btn btn-success" 
+                  onClick={completeAndReturnToCustomer} 
+                  disabled={uploadingCert}
+                  style={{ background: '#059669' }}
+                >
+                  {uploadingCert ? <><span className="spinner" /> Đang gửi kết quả...</> : (
+                    <><i className="fa-solid fa-paper-plane" /> Hoàn tất &amp; Gửi trả kết quả cho Khách hàng</>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 

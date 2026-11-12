@@ -15,6 +15,13 @@ export async function POST(request, { params }) {
     const token = verifyToken(match[1]);
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    // Chỉ kế toán hoặc admin mới có quyền xác nhận thu tiền và xuất HĐĐT
+    if (token.role !== 'accountant' && token.role !== 'admin') {
+      return NextResponse.json({ 
+        error: 'Chỉ Kế toán thu phí (Lê Thị Mỹ Phượng) hoặc Quản trị viên mới có quyền thực hiện Bước 1 (xác nhận tiền và xuất HĐĐT).' 
+      }, { status: 403 });
+    }
+
     const { id } = await params;
     const formData = await request.formData();
     const file = formData.get('file_invoice');

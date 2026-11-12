@@ -76,6 +76,20 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Trạng thái không hợp lệ' }, { status: 400 });
     }
 
+    // Kiểm tra phân quyền: Tài khoản thu phí không được hoàn tất hồ sơ hoặc chọn cán bộ PCBTN
+    if (token.role === 'accountant') {
+      if (status === 'completed' || certificateData) {
+        return NextResponse.json({ 
+          error: 'Tài khoản Thu phí không có quyền hoàn tất hồ sơ hoặc cấp chứng nhận (Bước 2).' 
+        }, { status: 403 });
+      }
+      if (handler_name !== undefined) {
+        return NextResponse.json({ 
+          error: 'Tài khoản Thu phí không có quyền phân công hoặc chọn cán bộ Khoa PCBTN.' 
+        }, { status: 403 });
+      }
+    }
+
     const oldStatus = app.status;
     const now = new Date().toISOString();
 
