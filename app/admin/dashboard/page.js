@@ -121,6 +121,55 @@ function BarChart({ stats }) {
   );
 }
 
+function numberToVietnameseWords(num) {
+  if (!num || num === 0) return 'Không đồng';
+  const units = ['', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+  const scales = ['', 'nghìn', 'triệu', 'tỷ', 'nghìn tỷ'];
+
+  function readGroup(n) {
+    let str = '';
+    const h = Math.floor(n / 100);
+    const t = Math.floor((n % 100) / 10);
+    const u = n % 10;
+
+    if (h > 0) str += units[h] + ' trăm ';
+    if (t > 1) {
+      str += units[t] + ' mươi ';
+      if (u === 1) str += 'mốt ';
+      else if (u === 5) str += 'lăm ';
+      else if (u > 0) str += units[u] + ' ';
+    } else if (t === 1) {
+      str += 'mười ';
+      if (u === 5) str += 'lăm ';
+      else if (u > 0) str += units[u] + ' ';
+    } else if (t === 0 && h > 0 && u > 0) {
+      str += 'lẻ ' + units[u] + ' ';
+    } else if (u > 0) {
+      str += units[u] + ' ';
+    }
+    return str.trim();
+  }
+
+  let temp = Math.abs(num);
+  let groups = [];
+  while (temp > 0) {
+    groups.push(temp % 1000);
+    temp = Math.floor(temp / 1000);
+  }
+
+  let words = [];
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const g = groups[i];
+    if (g > 0) {
+      const gStr = readGroup(g);
+      words.push(gStr + (scales[i] ? ' ' + scales[i] : ''));
+    }
+  }
+
+  const result = words.join(' ').trim();
+  return result.charAt(0).toUpperCase() + result.slice(1) + ' đồng chẵn';
+}
+
 export default function DashboardPage() {
   const [user, setUser]               = useState(null);
   const [stats, setStats]             = useState(null);
@@ -144,6 +193,51 @@ export default function DashboardPage() {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
+
+  // Báo cáo Kế toán thu phí gửi Khoa PCBTN state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportPeriod, setReportPeriod] = useState('week'); // 'week', 'month', 'year', 'custom', 'all'
+  const [reportWeekType, setReportWeekType] = useState('current'); // 'current', 'previous'
+  const [reportYear, setReportYear] = useState(new Date().getFullYear());
+  const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
+  const [reportCustomStart, setReportCustomStart] = useState('');
+  const [reportCustomEnd, setReportCustomEnd] = useState('');
+  const [reportPaymentFilter, setReportPaymentFilter] = useState('confirmed');
+  const [reportInvoiceFilter, setReportInvoiceFilter] = useState('all');
+  const [reportData, setReportData] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+
+  const fetchReport = useCallback(async () => {
+    setReportLoading(true);
+    try {
+      const p = new URLSearchParams({
+        period: reportPeriod,
+        weekType: reportWeekType,
+        year: String(reportYear),
+        month: String(reportMonth),
+        paymentFilter: reportPaymentFilter,
+        invoiceFilter: reportInvoiceFilter,
+      });
+      if (reportCustomStart) p.set('startDate', reportCustomStart);
+      if (reportCustomEnd) p.set('endDate', reportCustomEnd);
+
+      const res = await fetch(`/api/reports/cashier?${p}`);
+      if (res.ok) {
+        const data = await res.json();
+        setReportData(data);
+      }
+    } catch (e) {
+      console.error('[fetchReport error]', e);
+    } finally {
+      setReportLoading(false);
+    }
+  }, [reportPeriod, reportWeekType, reportYear, reportMonth, reportCustomStart, reportCustomEnd, reportPaymentFilter, reportInvoiceFilter]);
+
+  useEffect(() => {
+    if (showReportModal) {
+      fetchReport();
+    }
+  }, [showReportModal, fetchReport]);
 
   async function handleChangePassword(e) {
     e.preventDefault();
@@ -326,6 +420,188 @@ export default function DashboardPage() {
     a.click(); URL.revokeObjectURL(url);
   }
 
+  function exportReportCSV() {
+    if (!reportData || !reportData.records || reportData.records.length === 0) {
+      alert('Không có dữ liệu hồ sơ nào trong kỳ báo cáo đã chọn.');
+      return;
+    }
+    const headers = [
+      'STT', 'Mã hồ sơ', 'Họ và tên', 'CCCD/Hộ chiếu', 'Số điện thoại', 'Email liên hệ', 'Địa chỉ',
+      'Thời gian nộp', 'Lệ phí (VNĐ)', 'Thanh toán BIDV', 'Thời gian thu tiền', 'Người thu tiền',
+      'Yêu cầu HĐĐT', 'Tên cơ quan/Công ty', 'Mã số thuế', 'Mã QHNS', 'Địa chỉ HĐĐT', 'Email nhận HĐĐT',
+      'Tình trạng HĐĐT', 'Số hóa đơn', 'Cán bộ PCBTN tiếp nhận', 'Trạng thái hồ sơ'
+    ];
+    const rows = reportData.records.map((a, idx) => [
+      idx + 1,
+      a.id || '',
+      a.name || '',
+      a.cccd || '',
+      a.phone || '',
+      a.email || '',
+      a.address || '',
+      a.submitted_at ? new Date(a.submitted_at).toLocaleString('vi-VN') : '',
+      '85,000',
+      a.payment_confirmed ? 'Đã thu tiền' : 'Chưa thu',
+      a.payment_confirmed_at ? new Date(a.payment_confirmed_at).toLocaleString('vi-VN') : '',
+      a.payment_confirmed_by || (a.payment_confirmed ? 'Lê Thị Mỹ Phượng' : ''),
+      a.invoice_type === 'company' ? 'Doanh nghiệp' : 'Cá nhân',
+      a.invoice_company_name || '',
+      a.invoice_tax_code || '',
+      a.invoice_budget_code || '',
+      a.invoice_address || '',
+      a.invoice_email || '',
+      a.invoice_status === 'issued' ? 'Đã xuất HĐ' : 'Chưa xuất',
+      a.invoice_no || '',
+      a.handler_name || 'Chưa phân công',
+      STATUS_OPTS.find(s => s.value === a.status)?.label || a.status || ''
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => '"' + String(cell ?? '').replace(/"/g, '""') + '"').join(','))
+      .join('\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeLabel = (reportData.periodLabel || 'Bao_Cao').replace(/[^a-zA-Z0-9\-_]/g, '_');
+    link.href = url;
+    link.download = `BaoCao_ThuPhi_Gui_PCBTN_${safeLabel}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printReport() {
+    if (!reportData || !reportData.records) return;
+    const records = reportData.records;
+    const summary = reportData.summary || {};
+    const totalFee = summary.totalFee || 0;
+    const words = numberToVietnameseWords(totalFee);
+    const now = new Date();
+
+    const printWin = window.open('', '_blank', 'width=1100,height=800');
+    if (!printWin) {
+      alert('Vui lòng cho phép mở popup để in báo cáo.');
+      return;
+    }
+
+    const rowsHtml = records.map((r, i) => `
+      <tr>
+        <td style="text-align:center;">${i + 1}</td>
+        <td style="font-weight:600;">${r.id || ''}</td>
+        <td><strong>${r.name || ''}</strong></td>
+        <td>${r.cccd || ''}</td>
+        <td>${r.phone || ''}</td>
+        <td>${r.invoice_company_name ? `${r.invoice_company_name}<br><small>MST: ${r.invoice_tax_code || ''}</small>` : 'Cá nhân'}</td>
+        <td>${r.invoice_email || r.email || ''}</td>
+        <td style="text-align:right;font-weight:600;">85.000 đ</td>
+        <td style="text-align:center;">${r.payment_confirmed ? `<span style="color:#047857;font-weight:600;">Đã thu</span><br><small>${r.payment_confirmed_at ? new Date(r.payment_confirmed_at).toLocaleDateString('vi-VN') : ''}</small>` : 'Chưa thu'}</td>
+        <td style="text-align:center;">${r.invoice_no ? `<strong>${r.invoice_no}</strong>` : '—'}</td>
+        <td>${r.handler_name || 'Chưa phân công'}</td>
+      </tr>
+    `).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Báo cáo Thu phí gửi Khoa PCBTN - ${reportData.periodLabel}</title>
+        <style>
+          @page { size: A4 landscape; margin: 12mm 15mm; }
+          body { font-family: 'Times New Roman', serif; font-size: 13px; line-height: 1.4; color: #000; margin: 0; padding: 20px; }
+          .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+          .header-left, .header-right { text-align: center; }
+          .header-left h4, .header-right h4 { margin: 0; font-size: 13px; font-weight: bold; }
+          .header-left p, .header-right p { margin: 2px 0 0; font-size: 13px; }
+          .line { width: 120px; height: 1px; background: #000; margin: 4px auto 0; }
+          .title { text-align: center; margin: 25px 0 15px; }
+          .title h2 { margin: 0; font-size: 18px; font-weight: bold; text-transform: uppercase; }
+          .title p { margin: 6px 0 0; font-style: italic; font-size: 14px; }
+          .meta { margin-bottom: 15px; font-size: 13.5px; }
+          .meta p { margin: 4px 0; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          th, td { border: 1px solid #333; padding: 6px 8px; font-size: 12px; }
+          th { background: #f0f0f0; text-align: center; font-weight: bold; }
+          .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 40px; text-align: center; page-break-inside: avoid; }
+          .signatures h4 { margin: 0; font-size: 13px; font-weight: bold; text-transform: uppercase; }
+          .signatures p { margin: 2px 0 60px; font-style: italic; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="header-left">
+            <h4>TRUNG TÂM KIỂM SOÁT BỆNH TẬT</h4>
+            <h4>THÀNH PHỐ ĐÀ NẴNG</h4>
+            <p><strong>BỘ PHẬN KẾ TOÁN THU PHÍ</strong></p>
+            <div class="line"></div>
+          </div>
+          <div class="header-right">
+            <h4>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h4>
+            <p><strong>Độc lập - Tự do - Hạnh phúc</strong></p>
+            <div class="line"></div>
+            <p style="margin-top: 8px; font-style: italic;">Đà Nẵng, ngày ${now.getDate()} tháng ${now.getMonth() + 1} năm ${now.getFullYear()}</p>
+          </div>
+        </div>
+
+        <div class="title">
+          <h2>BÁO CÁO TỔNG HỢP DANH SÁCH THU PHÍ &amp; XUẤT HÓA ĐƠN ĐIỆN TỬ</h2>
+          <p>Kính gửi: Khoa Phòng, chống bệnh truyền nhiễm (PCBTN) theo dõi</p>
+        </div>
+
+        <div class="meta">
+          <p>• <strong>Kỳ báo cáo:</strong> ${reportData.periodLabel}</p>
+          <p>• <strong>Tài khoản đơn vị:</strong> 5611147422 — BIDV Chi nhánh Đà Nẵng | Mức thu: <strong>85.000 VNĐ / hồ sơ</strong></p>
+          <p>• <strong>Tổng số hồ sơ trong kỳ:</strong> ${summary.totalRecords || 0} hồ sơ | <strong>Đã thu tiền:</strong> ${summary.confirmedCount || 0} hồ sơ</p>
+          <p>• <strong>Tổng số tiền đã thu:</strong> <strong>${(totalFee).toLocaleString('vi-VN')} VNĐ</strong> (Bằng chữ: <em>${words}</em>)</p>
+          <p>• <strong>Hóa đơn điện tử:</strong> Đã xuất: <strong>${summary.issuedInvoiceCount || 0}</strong> HĐ | Đã bàn giao Khoa PCBTN: <strong>${summary.transferredCount || 0}</strong> hồ sơ</p>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width:30px;">STT</th>
+              <th style="width:70px;">Mã HS</th>
+              <th>Họ và tên</th>
+              <th>CCCD/Hộ chiếu</th>
+              <th>Số điện thoại</th>
+              <th>Cơ quan / MST</th>
+              <th>Email nhận HĐ</th>
+              <th style="width:75px;">Lệ phí</th>
+              <th style="width:70px;">Thu phí</th>
+              <th style="width:70px;">Số HĐĐT</th>
+              <th>Cán bộ PCBTN</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div class="signatures">
+          <div>
+            <h4>NGƯỜI LẬP BIỂU</h4>
+            <p>(Ký, ghi rõ họ tên)</p>
+            <strong>Lê Thị Mỹ Phượng</strong>
+          </div>
+          <div>
+            <h4>KHOA PCBTN TIẾP NHẬN</h4>
+            <p>(Ký, ghi rõ họ tên)</p>
+          </div>
+          <div>
+            <h4>LÃNH ĐẠO PHÊ DUYỆT</h4>
+            <p>(Ký, đóng dấu)</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+      printWin.print();
+    }, 500);
+  }
+
   function toggleSelect(id) {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   }
@@ -394,6 +670,34 @@ export default function DashboardPage() {
       </nav>
 
       <div className={styles.adminContent}>
+        {/* Banner dành riêng cho Kế toán Thu phí */}
+        {user?.role === 'accountant' && (
+          <div style={{
+            background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)',
+            color: 'white', borderRadius: 10, padding: '14px 20px', marginBottom: 20,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', flexWrap: 'wrap', gap: 12
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ background: 'rgba(255,255,255,0.2)', width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                <i className="fa-solid fa-receipt" />
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>Kế toán thu phí (Lê Thị Mỹ Phượng) &rarr; Khoa PCBTN</div>
+                <div style={{ fontSize: 13, opacity: 0.9, marginTop: 2 }}>
+                  Tổng hợp danh sách hồ sơ thu phí (85.000 VNĐ), xuất HĐĐT và xuất báo cáo gửi Khoa PCBTN theo dõi theo Tuần, Tháng, Năm.
+                </div>
+              </div>
+            </div>
+            <button 
+              className="btn" 
+              onClick={() => setShowReportModal(true)}
+              style={{ background: 'white', color: '#065f46', fontWeight: 700, padding: '8px 18px', border: 'none', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}
+            >
+              <i className="fa-solid fa-file-lines" /> Xuất Báo cáo gửi PCBTN
+            </button>
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--gray-900)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -505,8 +809,13 @@ export default function DashboardPage() {
             <button className="btn btn-outline btn-sm" onClick={fetchApps}>
               <i className="fa-solid fa-rotate-right" /> Làm mới
             </button>
-            <button className="btn btn-outline btn-sm" onClick={exportCSV} style={{ color: 'var(--success)', borderColor: 'var(--success)' }} title="Xuất danh sách Kế toán gửi Khoa PCBTN">
-              <i className="fa-solid fa-file-excel" /> Xuất DS Kế toán
+            <button 
+              className="btn btn-sm" 
+              onClick={() => { setShowReportModal(true); }} 
+              style={{ background: '#059669', color: '#fff', border: '1px solid #047857', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, padding: '6px 12px', borderRadius: 6, cursor: 'pointer' }}
+              title="Báo cáo thu phí & xuất HĐĐT gửi Khoa PCBTN theo dõi (Tuần, Tháng, Năm)"
+            >
+              <i className="fa-solid fa-file-invoice-dollar" /> Báo cáo gửi PCBTN
             </button>
           </div>
         </div>
@@ -631,6 +940,401 @@ export default function DashboardPage() {
           </table>
         </div>
       </div>
+
+      {/* MODAL BÁO CÁO THU PHÍ GỬI KHOA PCBTN */}
+      {showReportModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 12, maxWidth: 1040, width: '96%',
+            maxHeight: '92vh', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '16px 22px', background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)',
+              color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <i className="fa-solid fa-file-invoice-dollar" style={{ fontSize: 22, color: '#6ee7b7' }} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: -0.2 }}>
+                    Báo cáo Kế toán thu phí gửi Khoa PCBTN
+                  </h3>
+                  <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>
+                    Tổng hợp danh sách hồ sơ thu phí (85.000 VNĐ), xuất HĐĐT để bàn giao Khoa PCBTN theo dõi
+                  </div>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowReportModal(false)} 
+                style={{ background: 'rgba(255,255,255,0.2)', border: 'none', width: 32, height: 32, borderRadius: '50%', color: 'white', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Modal Filter Controls */}
+            <div style={{ padding: '14px 22px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+                {/* Chọn kỳ báo cáo */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>
+                    <i className="fa-regular fa-calendar-check" style={{ color: '#047857', marginRight: 5 }} />
+                    Thời gian:
+                  </span>
+                  
+                  {/* Period type selector */}
+                  <div style={{ display: 'inline-flex', background: '#e2e8f0', borderRadius: 6, padding: 2 }}>
+                    <button 
+                      type="button" 
+                      onClick={() => setReportPeriod('week')} 
+                      style={{
+                        border: 'none', padding: '5px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        background: reportPeriod === 'week' ? '#047857' : 'transparent',
+                        color: reportPeriod === 'week' ? 'white' : '#475569'
+                      }}
+                    >
+                      Tuần
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setReportPeriod('month')} 
+                      style={{
+                        border: 'none', padding: '5px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        background: reportPeriod === 'month' ? '#047857' : 'transparent',
+                        color: reportPeriod === 'month' ? 'white' : '#475569'
+                      }}
+                    >
+                      Tháng
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setReportPeriod('year')} 
+                      style={{
+                        border: 'none', padding: '5px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        background: reportPeriod === 'year' ? '#047857' : 'transparent',
+                        color: reportPeriod === 'year' ? 'white' : '#475569'
+                      }}
+                    >
+                      Năm
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setReportPeriod('custom')} 
+                      style={{
+                        border: 'none', padding: '5px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        background: reportPeriod === 'custom' ? '#047857' : 'transparent',
+                        color: reportPeriod === 'custom' ? 'white' : '#475569'
+                      }}
+                    >
+                      Tùy chọn ngày
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setReportPeriod('all')} 
+                      style={{
+                        border: 'none', padding: '5px 12px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        background: reportPeriod === 'all' ? '#047857' : 'transparent',
+                        color: reportPeriod === 'all' ? 'white' : '#475569'
+                      }}
+                    >
+                      Tất cả
+                    </button>
+                  </div>
+
+                  {/* Sub-selectors */}
+                  {reportPeriod === 'week' && (
+                    <select 
+                      className="form-control" 
+                      style={{ width: 'auto', padding: '4px 10px', fontSize: 13, height: 32 }}
+                      value={reportWeekType} 
+                      onChange={e => setReportWeekType(e.target.value)}
+                    >
+                      <option value="current">Tuần này</option>
+                      <option value="previous">Tuần trước</option>
+                    </select>
+                  )}
+
+                  {reportPeriod === 'month' && (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <select 
+                        className="form-control" 
+                        style={{ width: 'auto', padding: '4px 8px', fontSize: 13, height: 32 }}
+                        value={reportMonth} 
+                        onChange={e => setReportMonth(parseInt(e.target.value, 10))}
+                      >
+                        {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
+                          <option key={m} value={m}>Tháng {m}</option>
+                        ))}
+                      </select>
+                      <select 
+                        className="form-control" 
+                        style={{ width: 'auto', padding: '4px 8px', fontSize: 13, height: 32 }}
+                        value={reportYear} 
+                        onChange={e => setReportYear(parseInt(e.target.value, 10))}
+                      >
+                        {[2024, 2025, 2026, 2027, 2028].map(y => (
+                          <option key={y} value={y}>Năm {y}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {reportPeriod === 'year' && (
+                    <select 
+                      className="form-control" 
+                      style={{ width: 'auto', padding: '4px 10px', fontSize: 13, height: 32 }}
+                      value={reportYear} 
+                      onChange={e => setReportYear(parseInt(e.target.value, 10))}
+                    >
+                      {[2024, 2025, 2026, 2027, 2028].map(y => (
+                        <option key={y} value={y}>Năm {y}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {reportPeriod === 'custom' && (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input 
+                        type="date" 
+                        className="form-control" 
+                        style={{ width: 135, height: 32, fontSize: 12, padding: '2px 8px' }}
+                        value={reportCustomStart} 
+                        onChange={e => setReportCustomStart(e.target.value)} 
+                        placeholder="Từ ngày"
+                      />
+                      <span style={{ fontSize: 12, color: '#64748b' }}>đến</span>
+                      <input 
+                        type="date" 
+                        className="form-control" 
+                        style={{ width: 135, height: 32, fontSize: 12, padding: '2px 8px' }}
+                        value={reportCustomEnd} 
+                        onChange={e => setReportCustomEnd(e.target.value)} 
+                        placeholder="Đến ngày"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Filter đối tượng */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <select 
+                    className="form-control" 
+                    style={{ width: 'auto', height: 32, fontSize: 12, padding: '2px 8px' }}
+                    value={reportPaymentFilter} 
+                    onChange={e => setReportPaymentFilter(e.target.value)}
+                  >
+                    <option value="confirmed">Chỉ hồ sơ ĐÃ THU TIỀN</option>
+                    <option value="all">Tất cả (Đã thu &amp; Chưa thu)</option>
+                    <option value="unconfirmed">Chỉ hồ sơ CHƯA THU TIỀN</option>
+                  </select>
+
+                  <select 
+                    className="form-control" 
+                    style={{ width: 'auto', height: 32, fontSize: 12, padding: '2px 8px' }}
+                    value={reportInvoiceFilter} 
+                    onChange={e => setReportInvoiceFilter(e.target.value)}
+                  >
+                    <option value="all">Tất cả tình trạng HĐĐT</option>
+                    <option value="issued">Đã xuất HĐĐT</option>
+                    <option value="unissued">Chờ xuất HĐĐT</option>
+                  </select>
+
+                  <button 
+                    className="btn btn-outline btn-sm" 
+                    onClick={fetchReport}
+                    style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                    disabled={reportLoading}
+                  >
+                    {reportLoading ? <span className="spinner spinner-dark" style={{ width: 12, height: 12 }} /> : <i className="fa-solid fa-rotate-right" />}
+                    Tải lại
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* KPI Summary Cards */}
+            <div style={{ padding: '14px 22px 4px', background: '#ffffff' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>Kỳ báo cáo</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#15803d', marginTop: 3 }}>{reportData?.periodLabel || '...'}</div>
+                  <div style={{ fontSize: 12, color: '#166534', marginTop: 2 }}>{reportData?.summary?.totalRecords || 0} hồ sơ tổng cộng</div>
+                </div>
+
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase' }}>Tổng tiền đã thu</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#1d4ed8', marginTop: 3 }}>
+                    {(reportData?.summary?.totalFee || 0).toLocaleString('vi-VN')} đ
+                  </div>
+                  <div style={{ fontSize: 12, color: '#1e40af', marginTop: 2 }}>
+                    <strong>{reportData?.summary?.confirmedCount || 0}</strong> hồ sơ x 85.000 đ
+                  </div>
+                </div>
+
+                <div style={{ background: '#fefce8', border: '1px solid #fef08a', borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#854d0e', textTransform: 'uppercase' }}>Hóa đơn điện tử</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#a16207', marginTop: 3 }}>
+                    {reportData?.summary?.issuedInvoiceCount || 0} / {reportData?.summary?.totalRecords || 0}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#854d0e', marginTop: 2 }}>
+                    Chờ xuất: {reportData?.summary?.unissuedInvoiceCount || 0} hồ sơ
+                  </div>
+                </div>
+
+                <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#6b21a8', textTransform: 'uppercase' }}>Bàn giao Khoa PCBTN</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#7e22ce', marginTop: 3 }}>
+                    {reportData?.summary?.transferredCount || 0} hồ sơ
+                  </div>
+                  <div style={{ fontSize: 12, color: '#6b21a8', marginTop: 2 }}>Cán bộ khoa theo dõi &amp; cấp phiếu</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Data Preview Table */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '10px 22px 16px', minHeight: 240 }}>
+              {reportLoading ? (
+                <div style={{ textAlign: 'center', padding: 50 }}>
+                  <span className="spinner spinner-dark" style={{ width: 32, height: 32 }} />
+                  <div style={{ marginTop: 10, fontSize: 13, color: '#64748b' }}>Đang tải dữ liệu báo cáo...</div>
+                </div>
+              ) : !reportData?.records || reportData.records.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 50, color: '#64748b' }}>
+                  <i className="fa-solid fa-folder-open" style={{ fontSize: 36, opacity: 0.3, marginBottom: 8 }} />
+                  <div>Không có hồ sơ nào phù hợp với bộ lọc trong kỳ báo cáo này.</div>
+                </div>
+              ) : (
+                <table className="data-table" style={{ fontSize: 12 }}>
+                  <thead style={{ position: 'sticky', top: 0, background: '#f1f5f9', zIndex: 10 }}>
+                    <tr>
+                      <th style={{ width: 36, textAlign: 'center' }}>STT</th>
+                      <th style={{ width: 85 }}>Mã HS</th>
+                      <th>Khách hàng / CCCD</th>
+                      <th>Điện thoại / Địa chỉ</th>
+                      <th>Đơn vị / MST</th>
+                      <th>Email nhận HĐ</th>
+                      <th style={{ width: 80, textAlign: 'right' }}>Lệ phí</th>
+                      <th style={{ width: 85, textAlign: 'center' }}>Thu phí</th>
+                      <th style={{ width: 85, textAlign: 'center' }}>Số HĐĐT</th>
+                      <th>Cán bộ PCBTN</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportData.records.map((r, idx) => (
+                      <tr key={r.id}>
+                        <td style={{ textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
+                        <td>
+                          <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{r.id}</span>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{r.name}</div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>CCCD: {r.cccd}</div>
+                        </td>
+                        <td>
+                          <div>{r.phone}</div>
+                          <div style={{ fontSize: 11, color: '#64748b', maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.address}</div>
+                        </td>
+                        <td>
+                          {r.invoice_company_name ? (
+                            <div>
+                              <div style={{ fontWeight: 600, color: '#0369a1' }}>{r.invoice_company_name}</div>
+                              <div style={{ fontSize: 11, color: '#64748b' }}>MST: {r.invoice_tax_code || '—'}</div>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#64748b', fontStyle: 'italic' }}>Cá nhân</span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ fontSize: 11 }}>{r.invoice_email || r.email || '—'}</div>
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#047857' }}>
+                          85.000 đ
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {r.payment_confirmed ? (
+                            <div>
+                              <span className="badge badge-success" style={{ fontSize: 10, padding: '2px 6px' }}>Đã thu tiền</span>
+                              <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                                {r.payment_confirmed_at ? new Date(r.payment_confirmed_at).toLocaleDateString('vi-VN') : ''}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="badge badge-pending" style={{ fontSize: 10, padding: '2px 6px' }}>Chưa thu</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {r.invoice_no ? (
+                            <div>
+                              <span style={{ fontWeight: 700, color: '#1e40af' }}>{r.invoice_no}</span>
+                              {r.invoice_file_url && (
+                                <a href={r.invoice_file_url} target="_blank" rel="noreferrer" style={{ marginLeft: 4, color: '#0284c7' }} title="Xem file HĐĐT">
+                                  <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: 10 }} />
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          {r.handler_name ? (
+                            <span style={{ fontWeight: 600, color: '#475569' }}>{r.handler_name}</span>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Chưa phân công</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div style={{
+              padding: '14px 22px', background: '#f8fafc', borderTop: '1px solid #e2e8f0',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10
+            }}>
+              <div style={{ fontSize: 12, color: '#475569' }}>
+                <i className="fa-solid fa-building-columns" style={{ color: '#047857', marginRight: 6 }} />
+                Tài khoản BIDV: <strong>5611147422</strong> | Cán bộ thu phí: <strong>Lê Thị Mỹ Phượng</strong>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  onClick={() => setShowReportModal(false)}
+                >
+                  Đóng
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  onClick={printReport}
+                  disabled={!reportData?.records?.length}
+                  style={{ color: '#1e40af', borderColor: '#93c5fd' }}
+                >
+                  <i className="fa-solid fa-print" /> In Báo cáo / Lưu PDF
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary" 
+                  onClick={exportReportCSV}
+                  disabled={!reportData?.records?.length}
+                  style={{ background: '#059669', borderColor: '#059669' }}
+                >
+                  <i className="fa-solid fa-file-excel" /> Xuất file Excel (CSV)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL ĐỔI MẬT KHẨU */}
       {showPasswordModal && (
