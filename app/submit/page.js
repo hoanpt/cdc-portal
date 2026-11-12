@@ -3,13 +3,28 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import PublicHeader from '@/components/PublicHeader';
 import styles from './submit.module.css';
-
 import { paymentConfig as fallbackConfig } from '@/lib/paymentConfig';
+import { useLanguage } from '@/lib/i18n';
 
-const STEPS = ['Thông tin cá nhân', 'Giấy tờ đính kèm', 'Hình thức nhận KQ', 'Thanh toán & Hóa đơn', 'Xác nhận & Gửi'];
+function removeVietnameseTones(str) {
+  if (!str) return '';
+  return str.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd').replace(/Đ/g, 'D');
+}
 
 export default function SubmitPage() {
   const router = useRouter();
+  const { lang, t } = useLanguage();
+
+  const STEPS = [
+    t('step_0'),
+    t('step_1'),
+    t('step_2'),
+    t('step_3'),
+    t('step_4'),
+  ];
+
   const [step, setStep] = useState(0);
   const [appId, setAppId] = useState(() => 'CDC-' + Math.floor(100000 + Math.random() * 900000));
   const [loading, setLoading] = useState(false);
@@ -28,6 +43,7 @@ export default function SubmitPage() {
     name: '',
     cccd: '',
     cccd_confirm: '',
+    passport: '',
     dob: '',
     gender: '',
     phone: '',
@@ -65,49 +81,63 @@ export default function SubmitPage() {
 
   function validateStep() {
     if (step === 0) {
-      if (!form.name.trim()) return 'Vui lòng nhập họ và tên người sử dụng dịch vụ';
+      if (!form.name.trim()) return t('err_name');
       
       const cccd = form.cccd.trim();
-      if (!cccd) return 'Vui lòng nhập số CCCD / Mã định danh / Hộ chiếu';
-      if (cccd.length < 6 || cccd.length > 15) return 'Số CCCD/Hộ chiếu phải từ 6 đến 15 ký tự';
-      if (!/^[a-zA-Z0-9]+$/.test(cccd)) return 'Số CCCD/Hộ chiếu chỉ chứa chữ cái và số';
+      if (!cccd) return t('err_cccd');
+      if (cccd.length < 6 || cccd.length > 15) return t('err_cccd_len');
+      if (!/^[a-zA-Z0-9]+$/.test(cccd)) return lang === 'en' ? 'ID number must contain only letters and digits' : 'Số CCCD chỉ chứa chữ cái và số';
 
       const cccdConfirm = form.cccd_confirm.trim();
-      if (!cccdConfirm) return 'Vui lòng nhập lại số CCCD/Hộ chiếu để xác nhận';
-      if (cccd !== cccdConfirm) return 'Số CCCD/Hộ chiếu xác nhận không trùng khớp. Vui lòng kiểm tra lại thật chính xác.';
+      if (!cccdConfirm) return t('err_cccd_confirm');
+      if (cccd !== cccdConfirm) return t('err_cccd_mismatch');
+
+      // Ngày sinh & Giới tính là bắt buộc
+      if (!form.dob) return t('err_dob');
+      if (!form.gender) return t('err_gender');
 
       const phone = form.phone.trim();
-      if (!phone) return 'Vui lòng nhập số điện thoại liên hệ';
-      if (!/^\+?[0-9]{9,15}$/.test(phone.replace(/[\s-]/g, ''))) return 'Số điện thoại không hợp lệ (9-15 số)';
+      if (!phone) return t('err_phone');
+      if (!/^\+?[0-9]{9,15}$/.test(phone.replace(/[\s-]/g, ''))) return t('err_phone');
 
-      if (!form.address.trim()) return 'Vui lòng nhập địa chỉ của người sử dụng dịch vụ';
+      if (!form.address.trim()) return t('err_address');
 
-      if (!form.email.trim()) return 'Vui lòng nhập thông tin email liên hệ';
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return 'Email không hợp lệ';
+      // Email cá nhân không bắt buộc, nhưng nếu có điền thì phải đúng định dạng
+      if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+        return t('err_email_invalid');
+      }
 
       if (!form.committed) {
-        return 'Vui lòng đọc và tích chọn cam đoan tính chính xác của thông tin trước khi chuyển sang bước tiếp theo';
+        return t('err_commit');
       }
     }
 
     if (step === 1) {
-      if (!files.file_vaccine) return 'Vui lòng đính kèm file ảnh hoặc PDF Sổ / Chứng nhận tiêm chủng';
+      if (!files.file_vaccine) return t('err_vaccine');
+    }
+
+    if (step === 2) {
+      // Trường email không bắt buộc, chỉ khi chọn nhận qua email thì bắt nhập email
+      if (form.receive_method === 'email' && !form.email.trim()) {
+        return t('err_email_required_for_method');
+      }
     }
 
     if (step === 3) {
-      if (!files.file_payment) return 'Vui lòng đính kèm Ảnh chụp biên lai thanh toán chuyển khoản thành công';
+      if (!files.file_payment) return t('err_receipt');
 
       // Kiểm tra hóa đơn điện tử
       if (form.invoice_type === 'company') {
-        if (!form.invoice_company_name.trim()) return 'Vui lòng nhập Tên cơ quan, tổ chức / Công ty xuất hóa đơn';
-        if (!form.invoice_tax_code.trim()) return 'Vui lòng nhập Mã số thuế của cơ quan / công ty';
-        if (!form.invoice_address.trim()) return 'Vui lòng nhập Địa chỉ cơ quan / công ty xuất hóa đơn';
-        if (!form.invoice_email.trim()) return 'Vui lòng nhập Email cơ quan nhận hóa đơn điện tử';
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.invoice_email.trim())) return 'Email cơ quan nhận hóa đơn điện tử không hợp lệ';
+        if (!form.invoice_company_name.trim()) return t('err_inv_company');
+        if (!form.invoice_tax_code.trim()) return t('err_inv_tax');
+        if (!form.invoice_address.trim()) return t('err_inv_addr');
+        if (!form.invoice_email.trim()) return t('err_inv_email');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.invoice_email.trim())) return t('err_email_invalid');
       } else {
-        const invEmail = (form.invoice_email || form.email).trim();
-        if (!invEmail) return 'Vui lòng nhập Email nhận hóa đơn điện tử';
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invEmail)) return 'Email nhận hóa đơn điện tử không hợp lệ';
+        // Hóa đơn cá nhân
+        if (form.invoice_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.invoice_email.trim())) {
+          return t('err_email_invalid');
+        }
       }
     }
 
@@ -131,24 +161,24 @@ export default function SubmitPage() {
       if (files.file_vaccine) fd.append('file_vaccine', files.file_vaccine);
       if (files.file_payment) fd.append('file_payment', files.file_payment);
 
-      const res = await fetch('/api/applications', { method: 'POST', body: fd });
+      const res = await fetch('/api/applications', {
+        method: 'POST',
+        body: fd,
+      });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || (lang === 'en' ? 'Submission error' : 'Lỗi nộp hồ sơ'));
 
-      if (!res.ok) {
-        setError(data.error || 'Có lỗi xảy ra');
-        return;
-      }
-
-      setResult(data);
+      setResult({ id: appId });
     } catch (e) {
-      setError('Lỗi kết nối: ' + e.message);
+      setError(e.message);
     } finally {
       setLoading(false);
     }
   }
 
-  // Chuyển khoản content syntax: Thanh toán phí cấp phiếu TCCN cho [Tên khách hàng] - [Mã HS]
-  const transferContent = `Thanh toán phí cấp phiếu TCCN cho ${form.name ? form.name.trim() : 'KH'} - ${appId}`;
+  // Nội dung chuyển tiền: TT GCNTC Họ Tên người gửi
+  const transferContent = `TT GCNTC ${form.name ? form.name.trim().toUpperCase() : (lang === 'en' ? 'FULL NAME' : 'HO VA TEN')}`;
+  const cleanTransferContentForQr = removeVietnameseTones(transferContent);
   const fixedFee = 85000;
 
   if (result) {
@@ -161,34 +191,34 @@ export default function SubmitPage() {
               <div style={{ fontSize: 64, color: 'var(--success)', marginBottom: 20 }}>
                 <i className="fa-solid fa-circle-check" />
               </div>
-              <h2 style={{ fontSize: 24, marginBottom: 10 }}>Nộp hồ sơ thành công!</h2>
-              <p style={{ marginBottom: 24, color: 'var(--text-muted)' }}>Hệ thống đã tiếp nhận hồ sơ của bạn. Vui lòng lưu lại mã tra cứu:</p>
+              <h2 style={{ fontSize: 24, marginBottom: 10 }}>{t('result_title')}</h2>
+              <p style={{ marginBottom: 24, color: 'var(--text-muted)' }}>{t('result_desc')}</p>
               <div className={styles.trackingCode}>{result.id}</div>
               
               <div className="alert alert-info" style={{ textAlign: 'left', marginTop: 24, marginBottom: 24, fontSize: 13, lineHeight: 1.6 }}>
-                <div><i className="fa-solid fa-receipt" style={{ marginRight: 6 }} /> <strong>Quy trình xử lý:</strong></div>
-                <div>1. Bộ phận Kế toán kiểm tra xác nhận thanh toán và lập Hóa đơn điện tử.</div>
-                <div>2. Khoa Phòng chống bệnh truyền nhiễm (PCBTN) đối chiếu lịch sử tiêm chủng và cấp Giấy chứng nhận.</div>
-                <div>3. Kết quả Giấy chứng nhận & Hóa đơn điện tử sẽ được trả theo phương thức bạn đã đăng ký.</div>
+                <div><i className="fa-solid fa-receipt" style={{ marginRight: 6 }} /> <strong>{t('workflow_title')}</strong></div>
+                <div>{t('workflow_1')}</div>
+                <div>{t('workflow_2')}</div>
+                <div>{t('workflow_3')}</div>
               </div>
 
               <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button className="btn btn-primary" onClick={() => router.push('/track?id=' + result.id)}>
-                  <i className="fa-solid fa-magnifying-glass" /> Theo dõi hồ sơ
+                  <i className="fa-solid fa-magnifying-glass" /> {t('btn_track_now')}
                 </button>
                 <button className="btn btn-outline" onClick={() => { 
                   setResult(null); 
+                  setAppId('CDC-' + Math.floor(100000 + Math.random() * 900000));
                   setStep(0); 
                   setForm({
-                    name:'', cccd:'', cccd_confirm:'', dob:'', gender:'', phone:'', email:'', address:'',
+                    name:'', cccd:'', cccd_confirm:'', passport:'', dob:'', gender:'', phone:'', email:'', address:'',
                     committed: false, receive_method:'direct', notes:'',
                     invoice_type: 'personal', invoice_company_name: '', invoice_tax_code: '',
                     invoice_budget_code: '', invoice_address: '', invoice_email: ''
                   }); 
                   setFiles({ file_vaccine: null, file_payment: null }); 
-                  setAppId('CDC-' + Math.floor(100000 + Math.random() * 900000));
                 }}>
-                  Nộp hồ sơ khác
+                  {t('btn_submit_another')}
                 </button>
               </div>
             </div>
@@ -222,7 +252,9 @@ export default function SubmitPage() {
               <i className="fa-solid fa-file-signature" style={{ color: 'var(--primary)', marginRight: 10 }} />
               {STEPS[step]}
             </h3>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bước {step + 1} / {STEPS.length}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              {t('step_indicator', { current: step + 1, total: STEPS.length })}
+            </span>
           </div>
 
           <div className="card-body">
@@ -238,58 +270,95 @@ export default function SubmitPage() {
               <div>
                 <div className="alert alert-info" style={{ marginBottom: 20, fontSize: 13 }}>
                   <i className="fa-solid fa-shield-halved" style={{ fontSize: 16 }} />
-                  <strong>Chính sách bảo mật:</strong> Để đảm bảo an toàn thông tin cá nhân và tránh lộ lọt hình ảnh giấy tờ tùy thân, CDC Đà Nẵng <strong>không yêu cầu tải ảnh chụp CCCD/Hộ chiếu</strong>. Quý khách vui lòng nhập và đối chiếu thật chính xác số CCCD/Hộ chiếu để làm căn cứ cấp giấy chứng nhận.
+                  <strong>{t('privacy_title')}</strong> {t('privacy_desc')}
                 </div>
 
                 <div className={styles.formGrid}>
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label className="form-label">Họ và tên người sử dụng dịch vụ <span className="required">*</span></label>
-                    <input className="form-control" placeholder="NGUYỄN VĂN A" value={form.name} onChange={e => set('name', e.target.value.toUpperCase())} />
+                    <label className="form-label">{t('full_name')} <span className="required">*</span></label>
+                    <input className="form-control" placeholder={t('full_name_ph')} value={form.name} onChange={e => set('name', e.target.value.toUpperCase())} />
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Số CCCD / Mã định danh / Hộ chiếu <span className="required">*</span></label>
-                    <input className="form-control" placeholder="Nhập số giấy tờ" value={form.cccd} onChange={e => set('cccd', e.target.value)} />
+                    <label className="form-label">{t('cccd')} <span className="required">*</span></label>
+                    <input className="form-control" placeholder={t('cccd_ph')} value={form.cccd} onChange={e => set('cccd', e.target.value)} />
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Xác nhận lại số CCCD / Hộ chiếu <span className="required">*</span></label>
-                    <input className="form-control" placeholder="Nhập lại chính xác để xác nhận" value={form.cccd_confirm} onChange={e => set('cccd_confirm', e.target.value)} />
+                    <label className="form-label">{t('cccd_confirm')} <span className="required">*</span></label>
+                    <input className="form-control" placeholder={t('cccd_confirm_ph')} value={form.cccd_confirm} onChange={e => set('cccd_confirm', e.target.value)} />
                     {form.cccd && form.cccd_confirm && (
                       <div style={{ fontSize: 12, marginTop: 4, color: form.cccd === form.cccd_confirm ? 'var(--success)' : 'var(--danger)' }}>
-                        {form.cccd === form.cccd_confirm ? '✓ Số giấy tờ đã trùng khớp' : '✗ Chưa trùng khớp với số đã nhập ở trên'}
+                        {form.cccd === form.cccd_confirm ? t('cccd_match') : t('cccd_mismatch')}
                       </div>
                     )}
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label">Số điện thoại liên hệ <span className="required">*</span></label>
-                    <input className="form-control" placeholder="0901234567" type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} />
+                  {/* Bổ sung trường Hộ chiếu (Không bắt buộc) */}
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{t('passport')}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'normal' }}>({lang === 'en' ? 'Optional' : 'Không bắt buộc'})</span>
+                    </label>
+                    <input 
+                      className="form-control" 
+                      placeholder={t('passport_ph')} 
+                      value={form.passport} 
+                      onChange={e => set('passport', e.target.value.toUpperCase())} 
+                    />
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
+                      {t('passport_hint')}
+                    </div>
                   </div>
 
+                  {/* Ngày sinh (Bắt buộc) */}
                   <div className="form-group">
-                    <label className="form-label">Email liên hệ <span className="required">*</span></label>
-                    <input className="form-control" type="email" placeholder="email@example.com" value={form.email} onChange={e => set('email', e.target.value)} />
+                    <label className="form-label">{t('dob')} <span className="required">*</span></label>
+                    <input 
+                      className="form-control" 
+                      type="date" 
+                      value={form.dob} 
+                      onChange={e => set('dob', e.target.value)} 
+                      required
+                    />
                   </div>
 
+                  {/* Giới tính (Bắt buộc) */}
                   <div className="form-group">
-                    <label className="form-label">Ngày sinh</label>
-                    <input className="form-control" type="date" value={form.dob} onChange={e => set('dob', e.target.value)} />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Giới tính</label>
-                    <select className="form-control" value={form.gender} onChange={e => set('gender', e.target.value)}>
-                      <option value="">— Chọn —</option>
-                      <option value="Nam">Nam</option>
-                      <option value="Nữ">Nữ</option>
-                      <option value="Khác">Khác</option>
+                    <label className="form-label">{t('gender')} <span className="required">*</span></label>
+                    <select 
+                      className="form-control" 
+                      value={form.gender} 
+                      onChange={e => set('gender', e.target.value)}
+                      required
+                    >
+                      <option value="">{t('gender_select')}</option>
+                      <option value="Nam">{t('gender_male')}</option>
+                      <option value="Nữ">{t('gender_female')}</option>
+                      <option value="Khác">{t('gender_other')}</option>
                     </select>
                   </div>
 
+                  <div className="form-group">
+                    <label className="form-label">{t('phone')} <span className="required">*</span></label>
+                    <input className="form-control" placeholder={t('phone_ph')} type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} />
+                  </div>
+
+                  {/* Email liên hệ (Không bắt buộc - Chỉ bắt buộc khi nhận qua email) */}
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{t('email')}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'normal' }}>({lang === 'en' ? 'Optional' : 'Không bắt buộc'})</span>
+                    </label>
+                    <input className="form-control" type="email" placeholder={t('email_ph')} value={form.email} onChange={e => set('email', e.target.value)} />
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
+                      {t('email_hint')}
+                    </div>
+                  </div>
+
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label className="form-label">Địa chỉ thường trú / Nơi ở <span className="required">*</span></label>
-                    <input className="form-control" placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành" value={form.address} onChange={e => set('address', e.target.value)} />
+                    <label className="form-label">{t('address')} <span className="required">*</span></label>
+                    <input className="form-control" placeholder={t('address_ph')} value={form.address} onChange={e => set('address', e.target.value)} />
                   </div>
                 </div>
 
@@ -320,7 +389,7 @@ export default function SubmitPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <div className="alert alert-info" style={{ fontSize: 13 }}>
                   <i className="fa-solid fa-circle-info" />
-                  Vui lòng tải lên ảnh chụp hoặc bản scan <strong>Sổ tiêm chủng / Giấy xác nhận tiêm chủng</strong> rõ nét để cán bộ y tế đối chiếu các mũi tiêm.
+                  {t('doc_vaccine_desc')}
                 </div>
 
                 <div className="file-drop" onClick={() => document.getElementById('file_vaccine').click()} style={{ borderColor: files.file_vaccine ? 'var(--success)' : 'var(--border)' }}>
@@ -330,16 +399,16 @@ export default function SubmitPage() {
                       <i className="fa-solid fa-file-circle-check" style={{ fontSize: 32, color: 'var(--success)' }} />
                       <div style={{ textAlign: 'left' }}>
                         <div style={{ fontWeight: 600, color: 'var(--success)' }}>{files.file_vaccine.name}</div>
-                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{(files.file_vaccine.size / 1024).toFixed(1)} KB — Click để thay đổi file khác</div>
+                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{(files.file_vaccine.size / 1024).toFixed(1)} KB — {lang === 'en' ? 'Click to change file' : 'Click để thay đổi file khác'}</div>
                       </div>
                     </div>
                   ) : (
                     <>
                       <i className="fa-solid fa-syringe" style={{ fontSize: 36, color: 'var(--primary)', marginBottom: 12 }} />
-                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>Sổ / Chứng nhận tiêm chủng <span style={{ color: 'var(--danger)' }}>*</span></div>
-                      <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Chụp trang thông tin cá nhân và các trang ghi nhận mũi tiêm hợp lệ. Chấp nhận: JPG, PNG, PDF (tối đa 10MB).</p>
+                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{t('doc_vaccine_title')} <span style={{ color: 'var(--danger)' }}>*</span></div>
+                      <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('file_formats')}</p>
                       <div className="btn btn-outline btn-sm" style={{ marginTop: 12 }}>
-                        <i className="fa-solid fa-upload" /> Chọn file đính kèm
+                        <i className="fa-solid fa-upload" /> {lang === 'en' ? 'Choose File' : 'Chọn file đính kèm'}
                       </div>
                     </>
                   )}
@@ -351,9 +420,9 @@ export default function SubmitPage() {
             {step === 2 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {[
-                  { value: 'direct', icon: 'fa-building', label: 'Nhận trực tiếp tại CDC Đà Nẵng', desc: 'Đến nhận trực tiếp tại bộ phận Một cửa — CDC Đà Nẵng (118 Lê Đình Lý, Thanh Khê, TP. Đà Nẵng).' },
-                  { value: 'email', icon: 'fa-envelope', label: 'Nhận qua Email', desc: 'Giấy chứng nhận bản scan (PDF có dấu đỏ) và Hóa đơn điện tử sẽ được gửi về email đã đăng ký.' },
-                  { value: 'postal', icon: 'fa-truck', label: 'Gửi qua Bưu điện', desc: 'Giấy chứng nhận bản gốc sẽ được chuyển phát đến địa chỉ của bạn (người nhận thanh toán cước bưu điện).' },
+                  { value: 'direct', icon: 'fa-building', label: t('method_direct'), desc: t('method_direct_desc') },
+                  { value: 'email', icon: 'fa-envelope', label: t('method_email'), desc: t('method_email_desc') },
+                  { value: 'postal', icon: 'fa-truck', label: t('method_postal'), desc: t('method_postal_desc') },
                 ].map(opt => (
                   <label key={opt.value} className={`${styles.receiveOption} ${form.receive_method === opt.value ? styles.receiveSelected : ''}`}>
                     <input type="radio" name="receive_method" value={opt.value} checked={form.receive_method === opt.value} onChange={() => set('receive_method', opt.value)} style={{ display: 'none' }} />
@@ -365,9 +434,17 @@ export default function SubmitPage() {
                     {form.receive_method === opt.value && <i className="fa-solid fa-circle-check" style={{ color: 'var(--primary)', fontSize: 20 }} />}
                   </label>
                 ))}
+
+                {form.receive_method === 'email' && !form.email.trim() && (
+                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 12, fontSize: 13, color: '#b91c1c' }}>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 6 }} />
+                    {lang === 'en' ? 'You chose Email delivery. Please make sure to enter your Email address in Step 1.' : 'Bạn đã chọn nhận kết quả qua Email. Vui lòng quay lại Bước 1 điền Email nếu chưa nhập.'}
+                  </div>
+                )}
+
                 <div className="form-group" style={{ marginTop: 8 }}>
-                  <label className="form-label">Ghi chú thêm (nếu có)</label>
-                  <textarea className="form-control" rows={3} placeholder="Yêu cầu đặc biệt hoặc thông tin bổ sung cho cán bộ tiếp nhận..." value={form.notes} onChange={e => set('notes', e.target.value)} />
+                  <label className="form-label">{t('notes')}</label>
+                  <textarea className="form-control" rows={3} placeholder={t('notes_ph')} value={form.notes} onChange={e => set('notes', e.target.value)} />
                 </div>
               </div>
             )}
@@ -378,15 +455,15 @@ export default function SubmitPage() {
                 {/* Khối thông tin chuyển khoản */}
                 <div style={{ background: '#f8fafc', padding: 20, borderRadius: 12, border: '1px solid var(--border)' }}>
                   <h4 style={{ color: 'var(--primary)', fontSize: 16, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <i className="fa-solid fa-building-columns" /> Thông tin tài khoản nhận thanh toán của Trung tâm:
+                    <i className="fa-solid fa-building-columns" /> {t('payment_title')}
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12, fontSize: 13.5 }}>
-                    <div>• Tên đơn vị: <strong>Trung tâm Kiểm soát bệnh tật thành phố Đà Nẵng</strong></div>
-                    <div>• Địa chỉ: <strong>118 Lê Đình Lý, phường Thanh Khê, TP. Đà Nẵng</strong></div>
-                    <div>• Ngân hàng: <strong>BIDV - Chi nhánh Đà Nẵng</strong></div>
-                    <div>• Số tài khoản: <strong style={{ color: 'var(--primary)', fontSize: 16 }}>5611147422</strong></div>
-                    <div>• Số tiền lệ phí cố định: <strong style={{ color: 'var(--danger)', fontSize: 16 }}>{fixedFee.toLocaleString()} VNĐ</strong></div>
-                    <div>• Nội dung chuyển khoản: <strong style={{ color: 'var(--primary)' }}>{transferContent}</strong></div>
+                    <div>• {t('org_name_label')} <strong>{t('org_name_val')}</strong></div>
+                    <div>• {t('org_addr_label')} <strong>{t('org_addr_val')}</strong></div>
+                    <div>• {t('bank_name_label')} <strong>{t('bank_name_val')}</strong></div>
+                    <div>• {t('acc_no_label')} <strong style={{ color: 'var(--primary)', fontSize: 16 }}>5611147422</strong></div>
+                    <div>• {t('fee_label')} <strong style={{ color: 'var(--danger)', fontSize: 16 }}>{fixedFee.toLocaleString()} VNĐ</strong></div>
+                    <div>• {t('transfer_content_label')} <strong style={{ color: 'var(--primary)', fontSize: 15, background: '#eff6ff', padding: '2px 8px', borderRadius: 4 }}>{transferContent}</strong></div>
                   </div>
                 </div>
 
@@ -394,14 +471,14 @@ export default function SubmitPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: 20 }}>
                   <h5 style={{ fontSize: 15, marginBottom: 12, color: 'var(--text)' }}>
                     <i className="fa-solid fa-qrcode" style={{ marginRight: 6, color: 'var(--primary)' }} />
-                    Quét mã QR để thanh toán nhanh (BIDV VietQR)
+                    {t('qr_title')}
                   </h5>
                   <img 
-                    src={`https://img.vietqr.io/image/bidv-5611147422-compact2.jpg?amount=${fixedFee}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent('TRUNG TAM KIEM SOAT BENH TAT THANH PHO DA NANG')}`}
+                    src={`https://img.vietqr.io/image/bidv-5611147422-compact2.jpg?amount=${fixedFee}&addInfo=${encodeURIComponent(cleanTransferContentForQr)}&accountName=${encodeURIComponent('TRUNG TAM KIEM SOAT BENH TAT THANH PHO DA NANG')}`}
                     alt="BIDV VietQR"
                     style={{ width: '100%', maxWidth: 260, borderRadius: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                   />
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>Mã QR đã điền sẵn số tiền 85.000 VNĐ và nội dung chuyển khoản hợp lệ</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>{t('qr_desc')}</p>
                 </div>
 
                 {/* Upload biên lai */}
@@ -412,31 +489,32 @@ export default function SubmitPage() {
                       <i className="fa-solid fa-file-invoice-dollar" style={{ fontSize: 32, color: 'var(--success)' }} />
                       <div style={{ textAlign: 'left' }}>
                         <div style={{ fontWeight: 600, color: 'var(--success)' }}>{files.file_payment.name}</div>
-                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{(files.file_payment.size / 1024).toFixed(1)} KB — Click để đổi ảnh khác</div>
+                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{(files.file_payment.size / 1024).toFixed(1)} KB — {lang === 'en' ? 'Click to change' : 'Click để chọn file khác'}</div>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: 32, color: 'var(--primary)', marginBottom: 8 }} />
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>Tải lên Ảnh chụp biên lai / Giao dịch chuyển khoản <span style={{ color: 'var(--danger)' }}>*</span></div>
-                      <p style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Chụp ảnh màn hình chuyển khoản thành công từ ứng dụng ngân hàng</p>
-                      <div className="btn btn-outline btn-sm" style={{ marginTop: 8 }}>Chọn ảnh / file</div>
+                      <i className="fa-solid fa-receipt" style={{ fontSize: 36, color: 'var(--primary)', marginBottom: 12 }} />
+                      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{t('receipt_title')} <span style={{ color: 'var(--danger)' }}>*</span></div>
+                      <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('receipt_desc')}</p>
+                      <div className="btn btn-outline btn-sm" style={{ marginTop: 12 }}>
+                        <i className="fa-solid fa-upload" /> {lang === 'en' ? 'Choose Screenshot' : 'Chọn ảnh biên lai'}
+                      </div>
                     </>
                   )}
                 </div>
 
-                {/* Khối Đăng ký Thông tin Xuất Hóa đơn điện tử */}
-                <div style={{ border: '1px solid #cbd5e1', borderRadius: 12, padding: 20, background: '#fafafa' }}>
-                  <h4 style={{ fontSize: 16, marginBottom: 12, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <i className="fa-solid fa-receipt" style={{ color: 'var(--primary)' }} />
-                    Thông tin Xuất Hóa đơn điện tử (Bắt buộc theo quy định)
+                {/* KHỐI XUẤT HÓA ĐƠN ĐIỆN TỬ */}
+                <div style={{ background: '#f8fafc', padding: 20, borderRadius: 12, border: '1px solid var(--border)' }}>
+                  <h4 style={{ color: 'var(--primary)', fontSize: 16, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <i className="fa-solid fa-file-invoice" /> {t('invoice_sec_title')}
                   </h4>
                   <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-                    Kế toán thu phí sẽ kiểm tra tiền và phát hành Hóa đơn điện tử gửi về email cung cấp dưới đây.
+                    {t('invoice_sec_desc')}
                   </p>
 
                   <div style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14 }}>
                       <input 
                         type="radio" 
                         name="invoice_type" 
@@ -444,9 +522,9 @@ export default function SubmitPage() {
                         checked={form.invoice_type === 'personal'} 
                         onChange={() => set('invoice_type', 'personal')} 
                       />
-                      Xuất hóa đơn cho Cá nhân
+                      <strong>{t('invoice_type_personal')}</strong>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14 }}>
                       <input 
                         type="radio" 
                         name="invoice_type" 
@@ -454,19 +532,18 @@ export default function SubmitPage() {
                         checked={form.invoice_type === 'company'} 
                         onChange={() => set('invoice_type', 'company')} 
                       />
-                      Xuất hóa đơn về Công ty / Cơ quan
+                      <strong>{t('invoice_type_company')}</strong>
                     </label>
                   </div>
 
                   {form.invoice_type === 'personal' ? (
-                    <div style={{ background: '#fff', padding: 16, borderRadius: 8, border: '1px solid var(--border)' }}>
-                      <div style={{ fontSize: 13, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                        <div>• Người mua hàng: <strong>{form.name || '(Chưa nhập)'}</strong></div>
-                        <div>• Số CCCD/Định danh: <strong>{form.cccd || '(Chưa nhập)'}</strong></div>
-                        <div style={{ gridColumn: '1 / -1' }}>• Địa chỉ: <strong>{form.address || '(Chưa nhập)'}</strong></div>
+                    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 16 }}>
+                      <div style={{ fontSize: 13, color: '#334155', marginBottom: 12 }}>
+                        • {lang === 'en' ? 'Buyer Name:' : 'Người mua hàng:'} <strong>{form.name || (lang === 'en' ? 'Applicant' : 'Khách hàng')}</strong> | {lang === 'en' ? 'Citizen ID:' : 'Số CCCD:'} <strong>{form.cccd || '...'}</strong>
+                        {form.passport && <span> | {lang === 'en' ? 'Passport:' : 'Hộ chiếu:'} <strong>{form.passport}</strong></span>}
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Email nhận Hóa đơn điện tử <span className="required">*</span></label>
+                        <label className="form-label">{t('invoice_personal_email')}</label>
                         <input 
                           className="form-control" 
                           type="email" 
@@ -477,45 +554,45 @@ export default function SubmitPage() {
                       </div>
                     </div>
                   ) : (
-                    <div style={{ background: '#fff', padding: 16, borderRadius: 8, border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                        <label className="form-label">Tên cơ quan, tổ chức / Công ty <span className="required">*</span></label>
+                        <label className="form-label">{t('invoice_company_name')} <span className="required">*</span></label>
                         <input 
                           className="form-control" 
-                          placeholder="CÔNG TY TNHH ABC..." 
+                          placeholder={t('invoice_company_name_ph')} 
                           value={form.invoice_company_name} 
                           onChange={e => set('invoice_company_name', e.target.value)} 
                         />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Mã số thuế <span className="required">*</span></label>
+                        <label className="form-label">{t('invoice_tax_code')} <span className="required">*</span></label>
                         <input 
                           className="form-control" 
-                          placeholder="0400123456" 
+                          placeholder={t('invoice_tax_code_ph')} 
                           value={form.invoice_tax_code} 
                           onChange={e => set('invoice_tax_code', e.target.value)} 
                         />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Mã quan hệ ngân sách (Mã QHNS)</label>
+                        <label className="form-label">{t('invoice_budget_code')}</label>
                         <input 
                           className="form-control" 
-                          placeholder="Nếu có" 
+                          placeholder="Ví dụ: 1054321 (nếu có)" 
                           value={form.invoice_budget_code} 
                           onChange={e => set('invoice_budget_code', e.target.value)} 
                         />
                       </div>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                        <label className="form-label">Địa chỉ cơ quan / công ty theo ĐKKD <span className="required">*</span></label>
+                        <label className="form-label">{t('invoice_company_addr')} <span className="required">*</span></label>
                         <input 
                           className="form-control" 
-                          placeholder="Địa chỉ trụ sở công ty" 
+                          placeholder="Địa chỉ trụ sở công ty..." 
                           value={form.invoice_address} 
                           onChange={e => set('invoice_address', e.target.value)} 
                         />
                       </div>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                        <label className="form-label">Email nhận Hóa đơn điện tử của cơ quan <span className="required">*</span></label>
+                        <label className="form-label">{t('invoice_company_email')} <span className="required">*</span></label>
                         <input 
                           className="form-control" 
                           type="email" 
@@ -533,28 +610,30 @@ export default function SubmitPage() {
             {/* STEP 4: Xác nhận & Gửi */}
             {step === 4 && (
               <div>
-                <div className="alert alert-info" style={{ marginBottom: 20 }}>
-                  <i className="fa-solid fa-info-circle" />
-                  Vui lòng kiểm tra lại thông tin trước khi gửi. Sau khi nộp, Kế toán sẽ kiểm tra xác nhận thu phí và chuyển Khoa PCBTN xử lý cấp giấy chứng nhận.
-                </div>
+                <p style={{ color: 'var(--text-muted)', marginBottom: 20 }}>
+                  {t('review_desc')}
+                </p>
 
                 <div className={styles.confirmGrid}>
                   {[
-                    ['Mã hồ sơ đăng ký', appId],
-                    ['Họ và tên người sử dụng dịch vụ', form.name],
-                    ['Số CCCD / Định danh / Hộ chiếu', form.cccd],
-                    ['Số điện thoại', form.phone],
-                    ['Email liên hệ', form.email],
-                    ['Địa chỉ', form.address],
-                    ['Hình thức nhận KQ', form.receive_method === 'email' ? 'Qua Email' : form.receive_method === 'postal' ? 'Bưu điện' : 'Nhận trực tiếp tại CDC'],
-                    ['Lệ phí cấp phiếu', `${fixedFee.toLocaleString()} VNĐ (BIDV 5611147422)`],
-                    ['Loại hóa đơn điện tử', form.invoice_type === 'company' ? 'Xuất về Cơ quan / Công ty' : 'Xuất cho Cá nhân'],
-                    form.invoice_type === 'company' ? ['Tên đơn vị xuất HĐ', form.invoice_company_name] : null,
-                    form.invoice_type === 'company' ? ['Mã số thuế', form.invoice_tax_code] : null,
-                    form.invoice_type === 'company' && form.invoice_budget_code ? ['Mã QHNS', form.invoice_budget_code] : null,
-                    ['Email nhận HĐĐT', form.invoice_email || form.email],
-                    ['File Sổ tiêm chủng', files.file_vaccine?.name || 'Chưa đính kèm'],
-                    ['Ảnh biên lai thanh toán', files.file_payment?.name || 'Chưa đính kèm'],
+                    [lang === 'en' ? 'Application ID' : 'Mã hồ sơ đăng ký', appId],
+                    [t('full_name'), form.name],
+                    [t('cccd'), form.cccd],
+                    form.passport ? [t('passport'), form.passport] : null,
+                    [t('dob'), form.dob ? new Date(form.dob).toLocaleDateString('vi-VN') : '—'],
+                    [t('gender'), form.gender === 'Nam' ? t('gender_male') : form.gender === 'Nữ' ? t('gender_female') : form.gender],
+                    [t('phone'), form.phone],
+                    [t('email'), form.email || (lang === 'en' ? 'None provided' : 'Không cung cấp')],
+                    [t('address'), form.address],
+                    [t('receive_title'), form.receive_method === 'email' ? t('method_email') : form.receive_method === 'postal' ? t('method_postal') : t('method_direct')],
+                    [t('fee_label'), `85.000 VNĐ (BIDV 5611147422)`],
+                    [lang === 'en' ? 'Invoice Type' : 'Loại hóa đơn điện tử', form.invoice_type === 'company' ? t('invoice_type_company') : t('invoice_type_personal')],
+                    form.invoice_type === 'company' ? [t('invoice_company_name'), form.invoice_company_name] : null,
+                    form.invoice_type === 'company' ? [t('invoice_tax_code'), form.invoice_tax_code] : null,
+                    form.invoice_type === 'company' && form.invoice_budget_code ? [t('invoice_budget_code'), form.invoice_budget_code] : null,
+                    [t('invoice_personal_email'), form.invoice_email || form.email || (lang === 'en' ? 'None' : 'Chưa nhập')],
+                    [t('doc_vaccine_title'), files.file_vaccine?.name || '—'],
+                    [t('receipt_title'), files.file_payment?.name || '—'],
                   ].filter(Boolean).map(([label, value]) => (
                     <div key={label} className={styles.confirmRow}>
                       <span>{label}</span>
@@ -565,7 +644,7 @@ export default function SubmitPage() {
 
                 <div style={{ marginTop: 20, padding: 14, background: '#f1f5f9', borderRadius: 8, fontSize: 13, color: '#334155' }}>
                   <i className="fa-solid fa-circle-check" style={{ color: 'var(--success)', marginRight: 6 }} />
-                  <strong>Cam đoan:</strong> Người nộp đã cam đoan chịu trách nhiệm trước pháp luật về tính chính xác của toàn bộ thông tin đã cung cấp.
+                  <strong>{lang === 'en' ? 'Certified:' : 'Cam đoan:'}</strong> {lang === 'en' ? 'The applicant has legally certified the accuracy of all submitted information.' : 'Người nộp đã cam đoan chịu trách nhiệm trước pháp luật về tính chính xác của toàn bộ thông tin đã cung cấp.'}
                 </div>
               </div>
             )}
@@ -574,16 +653,16 @@ export default function SubmitPage() {
           <div className="card-footer" style={{ justifyContent: 'space-between' }}>
             {step > 0 ? (
               <button className="btn btn-outline" onClick={() => setStep(s => s - 1)}>
-                <i className="fa-solid fa-arrow-left" /> Quay lại
+                <i className="fa-solid fa-arrow-left" /> {t('btn_back')}
               </button>
             ) : <div />}
             {step < STEPS.length - 1 ? (
               <button className="btn btn-primary" onClick={next}>
-                Tiếp theo <i className="fa-solid fa-arrow-right" />
+                {t('btn_next')} <i className="fa-solid fa-arrow-right" />
               </button>
             ) : (
               <button className="btn btn-primary btn-lg" onClick={submit} disabled={loading}>
-                {loading ? <><span className="spinner" /> Đang gửi hồ sơ...</> : <><i className="fa-solid fa-paper-plane" /> Gửi hồ sơ đăng ký</>}
+                {loading ? <><span className="spinner" /> {t('btn_submitting')}</> : <><i className="fa-solid fa-paper-plane" /> {t('btn_submit')}</>}
               </button>
             )}
           </div>

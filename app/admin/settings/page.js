@@ -18,7 +18,14 @@ export default function SettingsPage() {
     smtp_from: '"CDC Đà Nẵng" <noreply@cdc-danang.gov.vn>',
     zalo_token: '',
     zalo_template_id: '',
-    zalo_notify_phones: ''
+    zalo_notify_phones: '',
+    mobifone_api_url: 'https://api.mobifoneinvoice.vn',
+    mobifone_username: '',
+    mobifone_password: '',
+    mobifone_tax_code: '0401999999',
+    mobifone_template_code: '1/001',
+    mobifone_series: 'C26TDD',
+    mobifone_enabled: 'false'
   });
 
   useEffect(() => {
@@ -228,6 +235,102 @@ export default function SettingsPage() {
               <div style={{ marginTop: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
                   {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu cấu hình Zalo OA</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* 5. CẤU HÌNH HÓA ĐƠN ĐIỆN TỬ MOBIFONE INVOICE */}
+        <div className="card" style={{ marginTop: 24, border: '1.5px solid #0284c7' }}>
+          <div className="card-header" style={{ background: '#f0f9ff' }}>
+            <h3 style={{ color: '#0369a1' }}>
+              <i className="fa-solid fa-bolt" style={{ color: '#0284c7', marginRight: 10 }} />
+              Kết nối API Hóa đơn điện tử MobiFone (MobiFone Invoice)
+            </h3>
+            <span style={{ fontSize: 13, color: '#0284c7', fontWeight: 600 }}>Tự động điền thông tin và xuất HĐĐT 1-click</span>
+          </div>
+          <div className="card-body">
+            <form onSubmit={saveSettings} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label className="form-label">MobiFone Invoice API URL</label>
+                <input 
+                  className="form-control" 
+                  value={settings.mobifone_api_url} 
+                  onChange={e => setSettings({...settings, mobifone_api_url: e.target.value})} 
+                  placeholder="https://api.mobifoneinvoice.vn hoặc URL sandbox" 
+                />
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Địa chỉ API máy chủ Hóa đơn điện tử MobiFone do nhà cung cấp bàn giao cho CDC Đà Nẵng.
+                </p>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Tài khoản kết nối API (Username)</label>
+                <input 
+                  className="form-control" 
+                  value={settings.mobifone_username} 
+                  onChange={e => setSettings({...settings, mobifone_username: e.target.value})} 
+                  placeholder="Tài khoản API MobiFone..." 
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Mật khẩu kết nối API (Password)</label>
+                <input 
+                  className="form-control" 
+                  type="password" 
+                  value={settings.mobifone_password} 
+                  onChange={e => setSettings({...settings, mobifone_password: e.target.value})} 
+                  placeholder="Mật khẩu API MobiFone..." 
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Mã số thuế bên bán (CDC Đà Nẵng)</label>
+                <input 
+                  className="form-control" 
+                  value={settings.mobifone_tax_code} 
+                  onChange={e => setSettings({...settings, mobifone_tax_code: e.target.value})} 
+                  placeholder="0401999999" 
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Mẫu số hóa đơn (Template Code)</label>
+                <input 
+                  className="form-control" 
+                  value={settings.mobifone_template_code} 
+                  onChange={e => setSettings({...settings, mobifone_template_code: e.target.value})} 
+                  placeholder="1/001" 
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Ký hiệu hóa đơn (Series)</label>
+                <input 
+                  className="form-control" 
+                  value={settings.mobifone_series} 
+                  onChange={e => setSettings({...settings, mobifone_series: e.target.value})} 
+                  placeholder="C26TDD" 
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Trạng thái kết nối API</label>
+                <select 
+                  className="form-control" 
+                  value={settings.mobifone_enabled} 
+                  onChange={e => setSettings({...settings, mobifone_enabled: e.target.value})}
+                >
+                  <option value="false">Tự động tại chỗ / Thử nghiệm (Simulator)</option>
+                  <option value="true">Bật kết nối API thực tế đến MobiFone</option>
+                </select>
+              </div>
+
+              <div style={{ gridColumn: '1 / -1', marginTop: 10 }}>
+                <button type="submit" className="btn btn-primary" disabled={saving} style={{ background: '#0284c7' }}>
+                  {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu cấu hình MobiFone Invoice</>}
                 </button>
               </div>
             </form>

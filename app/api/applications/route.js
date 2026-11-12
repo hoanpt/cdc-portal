@@ -27,7 +27,7 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = (page - 1) * limit;
 
-    let sql = `SELECT id, submitted_at, name, cccd, dob, gender, phone, email, address, receive_method, status, notes, certificate_id, package_date, gdrive_folder_id, handler_name, invoice_type, invoice_company_name, invoice_tax_code, invoice_budget_code, invoice_address, invoice_email, invoice_status, invoice_no, invoice_issued_at, invoice_issued_by, invoice_file_url, payment_confirmed, payment_confirmed_at, payment_confirmed_by, created_at, updated_at FROM applications WHERE 1=1`;
+    let sql = `SELECT id, submitted_at, name, cccd, passport, dob, gender, phone, email, address, receive_method, status, notes, certificate_id, package_date, gdrive_folder_id, handler_name, invoice_type, invoice_company_name, invoice_tax_code, invoice_budget_code, invoice_address, invoice_email, invoice_status, invoice_no, invoice_issued_at, invoice_issued_by, invoice_file_url, payment_confirmed, payment_confirmed_at, payment_confirmed_by, created_at, updated_at FROM applications WHERE 1=1`;
     const params = [];
 
     if (status && status !== 'all') {
@@ -46,9 +46,9 @@ export async function GET(request) {
     }
 
     if (q) {
-      sql += ` AND (name LIKE ? OR cccd LIKE ? OR id LIKE ? OR phone LIKE ? OR invoice_company_name LIKE ? OR invoice_tax_code LIKE ?)`;
+      sql += ` AND (name LIKE ? OR cccd LIKE ? OR passport LIKE ? OR id LIKE ? OR phone LIKE ? OR invoice_company_name LIKE ? OR invoice_tax_code LIKE ?)`;
       const like = `%${q}%`;
-      params.push(like, like, like, like, like, like);
+      params.push(like, like, like, like, like, like, like);
     }
 
     const countSql = sql.replace(/SELECT id, .*? FROM applications WHERE 1=1/, 'SELECT COUNT(*) as total FROM applications WHERE 1=1');
@@ -75,6 +75,7 @@ export async function POST(request) {
 
     const name = formData.get('name')?.trim();
     const cccd = formData.get('cccd')?.trim();
+    const passport = formData.get('passport')?.trim() || null;
     const dob = formData.get('dob');
     const gender = formData.get('gender');
     const phone = formData.get('phone')?.trim();
@@ -91,8 +92,12 @@ export async function POST(request) {
     const invoiceAddress = formData.get('invoice_address')?.trim() || null;
     const invoiceEmail = formData.get('invoice_email')?.trim() || email || null;
 
-    if (!name || !cccd || !phone) {
-      return NextResponse.json({ error: 'Thiếu thông tin bắt buộc' }, { status: 400 });
+    if (!name || !cccd || !phone || !dob || !gender) {
+      return NextResponse.json({ error: 'Thiếu thông tin bắt buộc (Họ tên, CCCD, SĐT, Ngày sinh, Giới tính)' }, { status: 400 });
+    }
+
+    if (receiveMethod === 'email' && !email) {
+      return NextResponse.json({ error: 'Vui lòng cung cấp email liên hệ khi chọn phương thức nhận kết quả qua email' }, { status: 400 });
     }
 
     // Kiểm tra trùng CCCD đang xử lý
@@ -212,13 +217,13 @@ export async function POST(request) {
     // Lưu vào DB
     await db.run(`
       INSERT INTO applications (
-        id, submitted_at, name, cccd, dob, gender, phone, email, address, receive_method, notes,
+        id, submitted_at, name, cccd, passport, dob, gender, phone, email, address, receive_method, notes,
         files_json, gdrive_folder_id, status,
         invoice_type, invoice_company_name, invoice_tax_code, invoice_budget_code, invoice_address, invoice_email, invoice_status
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, 'unissued')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, 'unissued')
     `, 
-      id, submittedAt, name, cccd, dob || null, gender || null, phone,
+      id, submittedAt, name, cccd, passport || null, dob || null, gender || null, phone,
       email || null, address || null, receiveMethod, notes,
       JSON.stringify(filesInfo), null,
       invoiceType, invoiceCompanyName, invoiceTaxCode, invoiceBudgetCode, invoiceAddress, invoiceEmail

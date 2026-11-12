@@ -84,7 +84,7 @@ export async function GET(request) {
     const db = await getDb();
     const rows = await db.all(`
       SELECT 
-        id, submitted_at, name, cccd, dob, gender, phone, email, address, receive_method,
+        id, submitted_at, name, cccd, passport, dob, gender, phone, email, address, receive_method,
         status, notes, certificate_id, package_date, handler_name,
         invoice_type, invoice_company_name, invoice_tax_code, invoice_budget_code,
         invoice_address, invoice_email, invoice_status, invoice_no, invoice_issued_at,

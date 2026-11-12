@@ -8,20 +8,20 @@ export async function GET(request, { params }) {
     if (!id) return NextResponse.json({ error: 'Thiếu mã hồ sơ hoặc số CCCD' }, { status: 400 });
 
     const db = await getDb();
-    // Tìm theo ID hoặc CCCD
+    // Tìm theo ID, CCCD hoặc Hộ chiếu
     const app = await db.get(`
       SELECT 
-        id, submitted_at, name, cccd, phone, receive_method, status, 
+        id, submitted_at, name, cccd, passport, phone, receive_method, status, 
         certificate_id, certificate_json, package_date, address,
         handler_name, invoice_type, invoice_status, invoice_no, invoice_file_url, payment_confirmed
       FROM applications
-      WHERE id = ? OR cccd = ?
+      WHERE id = ? OR cccd = ? OR passport = ?
       ORDER BY submitted_at DESC
       LIMIT 1
-    `, id.toUpperCase(), id);
+    `, id.toUpperCase(), id, id);
 
     if (!app) {
-      return NextResponse.json({ error: 'Không tìm thấy hồ sơ với mã hoặc số CCCD này' }, { status: 404 });
+      return NextResponse.json({ error: 'Không tìm thấy hồ sơ với mã hồ sơ, số CCCD hoặc số Hộ chiếu này' }, { status: 404 });
     }
 
     // Lấy timeline (status logs)

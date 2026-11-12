@@ -618,6 +618,7 @@ export default function DashboardPage() {
     return (
       String(a.name  || '').toLowerCase().includes(q) ||
       String(a.cccd  || '').toLowerCase().includes(q) ||
+      String(a.passport || '').toLowerCase().includes(q) ||
       String(a.id    || '').toLowerCase().includes(q) ||
       String(a.phone || '').toLowerCase().includes(q) ||
       String(a.invoice_company_name || '').toLowerCase().includes(q) ||
@@ -877,7 +878,10 @@ export default function DashboardPage() {
                     <td style={{ fontWeight: 700, fontSize: 13, fontFamily: 'monospace' }}>{app.id || '-'}</td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{app.name || '-'}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{app.cccd || '-'}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        {app.cccd || '-'}
+                        {app.passport && <span style={{ marginLeft: 6, color: '#0369a1', fontWeight: 600 }}>• HC: {app.passport}</span>}
+                      </div>
                     </td>
                     <td style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
                       {app.submitted_at ? new Date(app.submitted_at).toLocaleString('vi-VN') : '-'}

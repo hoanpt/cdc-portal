@@ -50,6 +50,34 @@ export default function CaseDetailPage({ params }) {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
+  const [issuingMobifone, setIssuingMobifone] = useState(false);
+
+  // Kế toán: Xuất HĐĐT MobiFone tự động (1-Click)
+  async function handleAutoMobifoneInvoice() {
+    if (isStaff) {
+      alert('Chức năng này dành riêng cho Kế toán thu phí (Lê Thị Mỹ Phượng).');
+      return;
+    }
+    if (!confirm(`Xác nhận kết nối xuất HĐĐT MobiFone cho khách hàng "${app.name}" với mức phí 85.000 VNĐ và tự động chuyển hồ sơ qua Khoa PCBTN?`)) {
+      return;
+    }
+
+    setIssuingMobifone(true);
+    try {
+      const res = await fetch(`/api/applications/${id}/mobifone-invoice`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi phát hành HĐĐT MobiFone');
+
+      alert(`✅ ${data.message}`);
+      loadApp();
+    } catch(err) {
+      alert('Lỗi: ' + err.message);
+    } finally {
+      setIssuingMobifone(false);
+    }
+  }
 
   async function handleChangePassword(e) {
     e.preventDefault();
@@ -314,8 +342,12 @@ export default function CaseDetailPage({ params }) {
                   <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--primary)' }}>{app.name}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Số CCCD / Hộ chiếu</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Số CCCD / Mã định danh</div>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{app.cccd}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Hộ chiếu (Passport)</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: app.passport ? '#1e40af' : '#64748b' }}>{app.passport || 'Không có'}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Số điện thoại</div>
@@ -433,6 +465,29 @@ export default function CaseDetailPage({ params }) {
                   {app.invoice_no && <span> (HĐĐT: <strong>{app.invoice_no}</strong>)</span>}
                 </div>
               ) : null}
+
+              {!isStaff && (
+                <div style={{ padding: '12px 16px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <i className="fa-solid fa-bolt" style={{ color: '#0284c7' }} />
+                      Xuất HĐĐT MobiFone tự động (1-Click)
+                    </div>
+                    <div style={{ fontSize: 12, color: '#0284c7', marginTop: 2 }}>
+                      Tự động điền thông tin khách hàng, xuất HĐĐT 85.000đ và chuyển thẳng hồ sơ qua Khoa PCBTN
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={handleAutoMobifoneInvoice}
+                    disabled={issuingMobifone}
+                    style={{ background: '#0284c7', color: 'white', fontWeight: 600, border: 'none', padding: '7px 14px', borderRadius: 6, cursor: 'pointer' }}
+                  >
+                    {issuingMobifone ? <><span className="spinner" /> Đang xuất HĐ...</> : <><i className="fa-solid fa-bolt" /> Xuất HĐ MobiFone</>}
+                  </button>
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">Số Hóa đơn điện tử (nếu có)</label>
