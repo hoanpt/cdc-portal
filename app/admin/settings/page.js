@@ -10,20 +10,12 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
     app_url: 'http://localhost:3000',
-    backup_keep_days: '30',
-    gdrive_folder_id: '',
-    gdrive_service_account_json: '',
     smtp_host: '',
     smtp_port: '587',
     smtp_secure: 'false',
     smtp_user: '',
     smtp_pass: '',
     smtp_from: '"CDC Đà Nẵng" <noreply@cdc-danang.gov.vn>',
-    bank_id: '',
-    bank_account: '',
-    bank_name: '',
-    payment_fee: '85000',
-    payment_desc: 'CDC ',
     zalo_token: '',
     zalo_template_id: '',
     zalo_notify_phones: ''
@@ -88,70 +80,66 @@ export default function SettingsPage() {
 
       <div className={styles.adminContent} style={{ maxWidth: 800 }}>
         
-        {/* Hệ thống */}
-        <div className="card">
-          <div className="card-header">
-            <h3><i className="fa-solid fa-server" style={{ color: 'var(--primary)', marginRight: 10 }} /> Cấu hình Hệ thống Chung</h3>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Các thiết lập cốt lõi của ứng dụng</span>
+        {/* 1. THÔNG TIN THU PHÍ & TÀI KHOẢN BIDV (Cố định theo quy định) */}
+        <div className="card" style={{ borderLeft: '4px solid #10b981' }}>
+          <div className="card-header" style={{ background: '#f0fdf4' }}>
+            <h3 style={{ color: '#047857' }}>
+              <i className="fa-solid fa-building-columns" style={{ marginRight: 10 }} />
+              Thông tin Tài khoản Thu phí &amp; Lệ phí cấp phiếu (Cố định)
+            </h3>
+            <span className="badge badge-completed">Đã kích hoạt</span>
           </div>
           <div className="card-body">
-            <form onSubmit={saveSettings} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Domain ứng dụng (App URL)</label>
-                <input className="form-control" value={settings.app_url} onChange={e => setSettings({...settings, app_url: e.target.value})} placeholder="VD: https://cdc.domain.com" required />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>Dùng để tạo link tra cứu hồ sơ gửi qua email. Không có dấu / ở cuối.</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, fontSize: 13.5 }}>
+              <div>• Đơn vị thụ hưởng: <strong>Trung tâm Kiểm soát bệnh tật thành phố Đà Nẵng</strong></div>
+              <div>• Ngân hàng: <strong>BIDV — Chi nhánh Đà Nẵng</strong></div>
+              <div>• Số tài khoản: <strong style={{ color: '#16a34a', fontSize: 15 }}>5611147422</strong></div>
+              <div>• Mức lệ phí cấp phiếu: <strong style={{ color: '#dc2626', fontSize: 15 }}>85.000 VNĐ</strong></div>
+              <div>• Địa chỉ đơn vị: <strong>118 Lê Đình Lý, phường Thanh Khê, TP. Đà Nẵng</strong></div>
+              <div>• Cán bộ phụ trách thu phí: <strong>Lê Thị Mỹ Phượng</strong> (tk: <code>lethimyphuong</code>)</div>
+              <div style={{ gridColumn: '1 / -1', background: '#f8fafc', padding: '10px 14px', borderRadius: 8, marginTop: 4 }}>
+                <span style={{ color: 'var(--text-muted)' }}>Cú pháp chuyển khoản tự động trên mã QR: </span>
+                <code style={{ color: '#2563eb', fontWeight: 700 }}>Thanh toán phí cấp phiếu TCCN cho [Tên khách hàng] - [Mã HS]</code>
               </div>
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Số ngày giữ file Backup Database</label>
-                <input className="form-control" type="number" value={settings.backup_keep_days} onChange={e => setSettings({...settings, backup_keep_days: e.target.value})} placeholder="30" required />
-              </div>
-              <div style={{ gridColumn: '1 / -1', marginTop: 10 }}>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu cấu hình</>}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
 
-        {/* Google Drive */}
+        {/* 2. CẤU HÌNH TÊN MIỀN HỆ THỐNG */}
         <div className="card" style={{ marginTop: 24 }}>
           <div className="card-header">
-            <h3><i className="fa-brands fa-google-drive" style={{ color: '#0F9D58', marginRight: 10 }} /> Cấu hình Google Drive</h3>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Lưu trữ hồ sơ và backup dữ liệu lên cloud</span>
+            <h3><i className="fa-solid fa-globe" style={{ color: 'var(--primary)', marginRight: 10 }} /> Cấu hình Tên miền Hệ thống (App URL)</h3>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Địa chỉ website dùng để gửi link tra cứu cho công dân</span>
           </div>
           <div className="card-body">
-            <form onSubmit={saveSettings} style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
+            <form onSubmit={saveSettings}>
               <div className="form-group">
-                <label className="form-label">Google Drive Folder ID</label>
-                <input className="form-control" value={settings.gdrive_folder_id} onChange={e => setSettings({...settings, gdrive_folder_id: e.target.value})} placeholder="VD: 1B2a... XYZ" />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>Lấy ID thư mục từ link Google Drive của bạn.</span>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Service Account JSON (Nội dung file JSON)</label>
-                <textarea 
+                <label className="form-label">Tên miền hệ thống (Domain URL)</label>
+                <input 
                   className="form-control" 
-                  rows={5} 
-                  value={settings.gdrive_service_account_json === '********' ? '' : settings.gdrive_service_account_json} 
-                  onChange={e => setSettings({...settings, gdrive_service_account_json: e.target.value})} 
-                  placeholder={settings.gdrive_service_account_json === '********' ? 'Đã lưu JSON key (Nhập mới để thay đổi)' : 'Paste toàn bộ nội dung file JSON vào đây...'} 
+                  value={settings.app_url} 
+                  onChange={e => setSettings({...settings, app_url: e.target.value})} 
+                  placeholder="VD: https://gcn.danang.gov.vn hoặc https://tên-miền-của-bạn" 
+                  required 
                 />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>Nội dung file JSON được cấp bởi Google Cloud Service Account.</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  Đường dẫn này dùng để tạo liên kết tra cứu hồ sơ gửi trong email thông báo cho khách hàng. Không để dấu <code>/</code> ở cuối.
+                </span>
               </div>
-              <div style={{ marginTop: 10 }}>
+              <div style={{ marginTop: 14 }}>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu cấu hình</>}
+                  {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu tên miền</>}
                 </button>
               </div>
             </form>
           </div>
         </div>
 
-        {/* Email */}
+        {/* 3. CẤU HÌNH GỬI EMAIL TỰ ĐỘNG (SMTP) */}
         <div className="card" style={{ marginTop: 24 }}>
           <div className="card-header">
             <h3><i className="fa-solid fa-envelope" style={{ color: 'var(--primary)', marginRight: 10 }} /> Cấu hình Gửi Email (SMTP)</h3>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Cấu hình tài khoản để tự động gửi thông báo</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Tự động gửi Giấy chứng nhận và Hóa đơn điện tử qua email khách hàng</span>
           </div>
           <div className="card-body">
             <form onSubmit={saveSettings} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -176,8 +164,8 @@ export default function SettingsPage() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Mật khẩu (App Password)</label>
-                <input className="form-control" type="password" value={settings.smtp_pass === '********' ? '' : settings.smtp_pass} onChange={e => setSettings({...settings, smtp_pass: e.target.value})} placeholder={settings.smtp_pass === '********' ? '********' : ''} />
+                <label className="form-label">Mật khẩu ứng dụng (App Password)</label>
+                <input className="form-control" type="password" value={settings.smtp_pass === '********' ? '' : settings.smtp_pass} onChange={e => setSettings({...settings, smtp_pass: e.target.value})} placeholder={settings.smtp_pass === '********' ? '********' : 'Nhập mật khẩu ứng dụng...'} />
               </div>
 
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -187,63 +175,20 @@ export default function SettingsPage() {
                   <option value="true">Có (Thường dùng với Port 465)</option>
                 </select>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-                  Ghi chú: Nếu bạn sử dụng Gmail, hãy bật bảo mật 2 lớp (2FA) và tạo <strong>Mật khẩu ứng dụng (App Password)</strong> để điền vào ô Mật khẩu. KHÔNG sử dụng mật khẩu đăng nhập Gmail thông thường.
+                  Ghi chú: Nếu bạn sử dụng Gmail, hãy bật bảo mật 2 lớp (2FA) và tạo <strong>Mật khẩu ứng dụng (App Password)</strong> để điền vào ô Mật khẩu. KHÔNG dùng mật khẩu đăng nhập Gmail thông thường.
                 </p>
               </div>
 
               <div style={{ gridColumn: '1 / -1', marginTop: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu cấu hình</>}
+                  {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu cấu hình Email</>}
                 </button>
               </div>
             </form>
           </div>
         </div>
 
-        {/* Thanh toán */}
-        <div className="card" style={{ marginTop: 24 }}>
-          <div className="card-header">
-            <h3><i className="fa-solid fa-building-columns" style={{ color: 'var(--success)', marginRight: 10 }} /> Cấu hình Thanh toán VietQR</h3>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Tài khoản nhận lệ phí cấp chứng nhận</span>
-          </div>
-          <div className="card-body">
-            <form onSubmit={saveSettings} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div className="form-group">
-                <label className="form-label">Ngân hàng (Mã BIN/Tên viết tắt)</label>
-                <input className="form-control" value={settings.bank_id} onChange={e => setSettings({...settings, bank_id: e.target.value})} placeholder="VD: VCB, MB, BIDV" />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Số tài khoản</label>
-                <input className="form-control" value={settings.bank_account} onChange={e => setSettings({...settings, bank_account: e.target.value})} placeholder="VD: 1903000000" />
-              </div>
-
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Tên chủ tài khoản</label>
-                <input className="form-control" value={settings.bank_name} onChange={e => setSettings({...settings, bank_name: e.target.value})} placeholder="VD: NGUYEN VAN A" />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Mức phí (VNĐ)</label>
-                <input className="form-control" type="number" value={settings.payment_fee} onChange={e => setSettings({...settings, payment_fee: e.target.value})} placeholder="85000" />
-              </div>
-
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <p style={{ fontSize: 13, color: 'var(--primary)', marginTop: 6, background: 'var(--primary-light)', padding: '10px 16px', borderRadius: 8 }}>
-                  <i className="fa-solid fa-circle-info" /> <strong>Lưu ý:</strong> Nội dung chuyển khoản trên mã QR sẽ tự động được gán thành <strong>Mã số hồ sơ</strong> (VD: CDC-123456) để hệ thống dễ dàng đối soát tự động.
-                </p>
-              </div>
-
-              <div style={{ gridColumn: '1 / -1', marginTop: 10 }}>
-                <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu cấu hình</>}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        {/* Cấu hình Zalo OA */}
+        {/* 4. CẤU HÌNH THÔNG BÁO ZALO OA */}
         <div className="card" style={{ marginTop: 24 }}>
           <div className="card-header">
             <h3><i className="fa-solid fa-bell" style={{ color: '#0284c7', marginRight: 10 }} /> Cấu hình Thông báo Zalo OA</h3>
@@ -277,6 +222,7 @@ export default function SettingsPage() {
             </form>
           </div>
         </div>
+
       </div>
     </div>
   );

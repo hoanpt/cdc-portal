@@ -125,6 +125,21 @@ export async function GET(request, { params }) {
       } catch (e) {}
     }
 
+    // Đính kèm Hóa đơn điện tử nếu có
+    if (app.invoice_file_url) {
+      try {
+        const invBuffer = await getFileBuffer({ localPath: app.invoice_file_url, url: app.invoice_file_url });
+        if (invBuffer && invBuffer.length > 0) {
+          const invExt = path.extname(app.invoice_file_url) || '.pdf';
+          const invFileName = `Hoa_Don_Dien_Tu_${app.invoice_no || app.id}${invExt}`;
+          zip.file(invFileName, invBuffer);
+          fileCount++;
+        }
+      } catch (e) {
+        console.error('[DownloadAll] Lỗi thêm HĐĐT:', e);
+      }
+    }
+
     // Thử lấy tệp từ Google Drive folder nếu có
     let targetFolderId = app.gdrive_folder_id;
     if (!targetFolderId && fileCount === 0) {

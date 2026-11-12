@@ -477,6 +477,31 @@ export default function CaseDetailPage({ params }) {
                 </div>
               )}
 
+              {/* Thẻ xác nhận Hóa đơn điện tử đi kèm */}
+              <div style={{ background: app.invoice_file_url ? '#f0fdf4' : '#fffbeb', border: `1px solid ${app.invoice_file_url ? '#bbf7d0' : '#fde68a'}`, borderRadius: 8, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+                    <i className={`fa-solid ${app.invoice_file_url ? 'fa-file-invoice-dollar' : 'fa-triangle-exclamation'}`} style={{ color: app.invoice_file_url ? '#16a34a' : '#d97706', fontSize: 18 }} />
+                    <div>
+                      <strong style={{ color: app.invoice_file_url ? '#166534' : '#92400e' }}>
+                        {app.invoice_file_url ? 'Hóa đơn điện tử kèm theo:' : 'Chưa có file Hóa đơn điện tử từ Kế toán'}
+                      </strong>
+                      {app.invoice_no && <span style={{ marginLeft: 6, fontSize: 12.5, color: '#15803d' }}>(Số HĐ: <strong>{app.invoice_no}</strong>)</span>}
+                    </div>
+                  </div>
+                  {app.invoice_file_url && (
+                    <a href={app.invoice_file_url} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline" style={{ color: '#166534', borderColor: '#bbf7d0', background: 'white' }}>
+                      <i className="fa-solid fa-eye" /> Xem file HĐĐT
+                    </a>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: app.invoice_file_url ? '#15803d' : '#b45309', marginTop: 6 }}>
+                  {app.invoice_file_url 
+                    ? '✓ Tệp HĐĐT này sẽ được tự động đóng gói cùng Giấy chứng nhận để gửi trả cho khách hàng (qua Email và cổng tra cứu).' 
+                    : 'Kế toán chưa đính kèm file HĐĐT ở Bước 1.'}
+                </div>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Cán bộ Khoa PCBTN tiếp nhận &amp; xử lý <span className="required">*</span></label>
                 <select 
@@ -543,15 +568,42 @@ export default function CaseDetailPage({ params }) {
             </div>
           </div>
 
-          {/* File đính kèm từ khách hàng */}
+          {/* File đính kèm từ khách hàng & Kết quả giải quyết */}
           <div className="card">
             <div className="card-header">
-              <h3><i className="fa-solid fa-paperclip" style={{ color: 'var(--primary)', marginRight: 8 }} />Tệp đính kèm từ khách hàng</h3>
+              <h3><i className="fa-solid fa-paperclip" style={{ color: 'var(--primary)', marginRight: 8 }} />Tệp hồ sơ &amp; Tài liệu kết quả</h3>
             </div>
             <div className="card-body">
-              {(app.files_json && app.files_json.length > 0) ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {app.files_json.map((f, idx) => (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* Hóa đơn điện tử nếu có */}
+                {app.invoice_file_url && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                    <i className="fa-solid fa-receipt" style={{ color: '#16a34a', fontSize: 18 }} />
+                    <span style={{ flex: 1, fontSize: 13 }}>
+                      <strong style={{ color: '#166534' }}>Hóa đơn điện tử (Kế toán xuất):</strong> Số HĐ {app.invoice_no || 'Đã xuất'} (Lệ phí 85.000đ BIDV)
+                    </span>
+                    <a href={app.invoice_file_url} target="_blank" rel="noreferrer" className="btn btn-sm btn-success">
+                      <i className="fa-solid fa-eye" /> Xem HĐĐT
+                    </a>
+                  </div>
+                )}
+
+                {/* Giấy chứng nhận nếu có */}
+                {app.certificate_json?.url && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#ecfdf5', borderRadius: 8, border: '1px solid #a7f3d0' }}>
+                    <i className="fa-solid fa-certificate" style={{ color: '#059669', fontSize: 18 }} />
+                    <span style={{ flex: 1, fontSize: 13 }}>
+                      <strong style={{ color: '#065f46' }}>Giấy chứng nhận tiêm chủng (Khoa PCBTN cấp):</strong> Mã {app.certificate_id}
+                    </span>
+                    <a href={app.certificate_json.url} target="_blank" rel="noreferrer" className="btn btn-sm btn-primary">
+                      <i className="fa-solid fa-eye" /> Xem Chứng nhận
+                    </a>
+                  </div>
+                )}
+
+                {/* Tệp khách hàng tải lên */}
+                {(app.files_json && app.files_json.length > 0) ? (
+                  app.files_json.map((f, idx) => (
                     <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--gray-50)', borderRadius: 8, border: '1px solid var(--border)' }}>
                       <i className="fa-solid fa-file" style={{ color: 'var(--primary)', fontSize: 18 }} />
                       <span style={{ flex: 1, fontSize: 13 }}>
@@ -561,11 +613,11 @@ export default function CaseDetailPage({ params }) {
                         <i className="fa-solid fa-eye" /> Xem file
                       </a>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="alert alert-warning">Không có file đính kèm nào.</div>
-              )}
+                  ))
+                ) : (!app.invoice_file_url && !app.certificate_json?.url && (
+                  <div className="alert alert-warning">Không có file đính kèm nào.</div>
+                ))}
+              </div>
             </div>
           </div>
 
