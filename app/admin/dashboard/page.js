@@ -16,6 +16,13 @@ const METHOD_MAP = {
   direct: 'Nhận trực tiếp',
 };
 
+const PCBTN_OFFICERS = [
+  'Nguyễn Thị Yến',
+  'Đoàn Cẩm Trúc',
+  'Đặng Thị Mai Khôi',
+  'Nguyễn Thị Kiều Diểm'
+];
+
 function DoughnutChart({ stats }) {
   if (!stats || !stats.byStatus) {
     return (
@@ -124,6 +131,8 @@ export default function DashboardPage() {
   const [comparePeriod, setComparePeriod] = useState('none');
   const [search, setSearch]           = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [handlerFilter, setHandlerFilter] = useState('all');
+  const [invoiceFilter, setInvoiceFilter] = useState('all');
   const [backing, setBacking]         = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [deleting, setDeleting]       = useState(false);
@@ -154,6 +163,8 @@ export default function DashboardPage() {
     try {
       const params = new URLSearchParams({ limit: '100' });
       if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (handlerFilter !== 'all') params.set('handler', handlerFilter);
+      if (invoiceFilter !== 'all') params.set('invoice_status', invoiceFilter);
       if (search) params.set('q', search);
       const res = await fetch(`/api/applications?${params}`);
       if (res.status === 401) { window.location.href = '/admin'; return; }
@@ -163,7 +174,7 @@ export default function DashboardPage() {
       setTotal(parseInt(data.total ?? 0, 10) || 0);
     } catch (e) { console.error('[fetchApps]', e); setApps([]); }
     finally { setLoading(false); }
-  }, [statusFilter, search]);
+  }, [statusFilter, handlerFilter, invoiceFilter, search]);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
   useEffect(() => { fetchApps();  }, [fetchApps]);
@@ -239,18 +250,40 @@ export default function DashboardPage() {
   }
 
   function exportCSV() {
-    const headers = ['Ma HS', 'Ho Ten', 'CCCD', 'SDT', 'Ngay Nop', 'Nhan KQ', 'Trang thai'];
+    const headers = [
+      'Mã hồ sơ', 'Họ và tên', 'CCCD/Hộ chiếu', 'Số điện thoại', 'Email liên hệ', 'Địa chỉ',
+      'Thời gian nộp', 'Hình thức nhận KQ', 'Lệ phí (VNĐ)', 'Thanh toán BIDV', 'Thời gian xác nhận tiền',
+      'Người xác nhận tiền', 'Yêu cầu HĐĐT', 'Tên cơ quan/Công ty', 'Mã số thuế', 'Mã QHNS',
+      'Địa chỉ HĐĐT', 'Email nhận HĐĐT', 'Tình trạng HĐĐT', 'Số hóa đơn', 'Cán bộ PCBTN tiếp nhận'
+    ];
     const rows = filtered.map(a => [
-      a.id, a.name, a.cccd, a.phone,
+      a.id || '',
+      a.name || '',
+      a.cccd || '',
+      a.phone || '',
+      a.email || '',
+      a.address || '',
       a.submitted_at ? new Date(a.submitted_at).toLocaleString('vi-VN') : '',
       METHOD_MAP[a.receive_method] || a.receive_method || '',
-      STATUS_MAP[a.status]?.text || a.status || '',
+      '85,000',
+      a.payment_confirmed ? 'Đã thu tiền' : 'Chưa thu',
+      a.payment_confirmed_at ? new Date(a.payment_confirmed_at).toLocaleString('vi-VN') : '',
+      a.payment_confirmed_by || '',
+      a.invoice_type === 'company' ? 'Doanh nghiệp' : 'Cá nhân',
+      a.invoice_company_name || '',
+      a.invoice_tax_code || '',
+      a.invoice_budget_code || '',
+      a.invoice_address || '',
+      a.invoice_email || '',
+      a.invoice_status === 'issued' ? 'Đã xuất HĐ' : 'Chưa xuất',
+      a.invoice_no || '',
+      a.handler_name || 'Chưa phân công'
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'CDC_DanhSachHS_' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.href = url; a.download = 'DS_KeToan_Gui_PCBTN_' + new Date().toISOString().slice(0, 10) + '.csv';
     a.click(); URL.revokeObjectURL(url);
   }
 
@@ -263,22 +296,27 @@ export default function DashboardPage() {
 
   const filtered = (apps || []).filter(a => {
     if (!a) return false;
+    if (handlerFilter !== 'all' && a.handler_name !== handlerFilter) return false;
+    if (invoiceFilter !== 'all' && a.invoice_status !== invoiceFilter) return false;
     const q = search.toLowerCase().trim();
     if (!q) return true;
     return (
       String(a.name  || '').toLowerCase().includes(q) ||
       String(a.cccd  || '').toLowerCase().includes(q) ||
       String(a.id    || '').toLowerCase().includes(q) ||
-      String(a.phone || '').toLowerCase().includes(q)
+      String(a.phone || '').toLowerCase().includes(q) ||
+      String(a.invoice_company_name || '').toLowerCase().includes(q) ||
+      String(a.invoice_tax_code || '').toLowerCase().includes(q)
     );
   });
 
   return (
     <div className={styles.adminLayout}>
       <nav className={styles.adminNav}>
-        <div className={styles.adminNavLogo}>
+        <div className={styles.adminNavLogo} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <i className="fa-solid fa-shield-halved" style={{ color: '#60a5fa' }} />
-          CDC Admin
+          CDC Admin Portal
+          <span style={{ fontSize: 11, background: '#1e3a8a', color: '#93c5fd', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>v2.1.0</span>
         </div>
         <div className={styles.adminNavUser}>
           <Link href="/admin/settings" className="btn btn-ghost btn-sm" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
@@ -385,19 +423,29 @@ export default function DashboardPage() {
             Danh sách hồ sơ <span style={{ font: 'normal 14px Inter', color: 'var(--text-muted)', marginLeft: 6 }}>({total})</span>
           </div>
           <div className={styles.toolbarActions}>
-            <select className={styles.searchInput} style={{ width: 160 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <select className={styles.searchInput} style={{ width: 140 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
               <option value="all">Tất cả trạng thái</option>
-              <option value="pending">Chờ tiếp nhận</option>
-              <option value="received">Đã tiếp nhận</option>
-              <option value="processing">Đang xử lý</option>
+              <option value="pending">Chờ thu phí</option>
+              <option value="processing">Khoa PCBTN xử lý</option>
               <option value="completed">Đã hoàn tất</option>
             </select>
-            <input className={styles.searchInput} placeholder="Tìm theo tên, CCCD, mã HS..." value={search} onChange={e => setSearch(e.target.value)} />
+            <select className={styles.searchInput} style={{ width: 150 }} value={handlerFilter} onChange={e => setHandlerFilter(e.target.value)}>
+              <option value="all">Tất cả cán bộ PCBTN</option>
+              {PCBTN_OFFICERS.map(off => (
+                <option key={off} value={off}>{off}</option>
+              ))}
+            </select>
+            <select className={styles.searchInput} style={{ width: 140 }} value={invoiceFilter} onChange={e => setInvoiceFilter(e.target.value)}>
+              <option value="all">Tất cả HĐĐT</option>
+              <option value="unissued">Chờ xuất HĐ</option>
+              <option value="issued">Đã xuất HĐ</option>
+            </select>
+            <input className={styles.searchInput} placeholder="Tìm theo tên, CCCD, MST, mã HS..." value={search} onChange={e => setSearch(e.target.value)} />
             <button className="btn btn-outline btn-sm" onClick={fetchApps}>
               <i className="fa-solid fa-rotate-right" /> Làm mới
             </button>
-            <button className="btn btn-outline btn-sm" onClick={exportCSV} style={{ color: 'var(--success)', borderColor: 'var(--success)' }}>
-              <i className="fa-solid fa-file-csv" /> CSV
+            <button className="btn btn-outline btn-sm" onClick={exportCSV} style={{ color: 'var(--success)', borderColor: 'var(--success)' }} title="Xuất danh sách Kế toán gửi Khoa PCBTN">
+              <i className="fa-solid fa-file-excel" /> Xuất DS Kế toán
             </button>
           </div>
         </div>
@@ -428,6 +476,8 @@ export default function DashboardPage() {
                 <th>Mã Hồ Sơ</th>
                 <th>Họ và Tên / CCCD</th>
                 <th>Ngày Nộp</th>
+                <th>Thu Phí &amp; HĐĐT</th>
+                <th>Cán bộ PCBTN</th>
                 <th>Nhận KQ</th>
                 <th>Trạng thái</th>
                 <th style={{ textAlign: 'right' }}>Thao tác</th>
@@ -435,11 +485,11 @@ export default function DashboardPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40 }}>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40 }}>
                   <span className="spinner spinner-dark" style={{ width: 28, height: 28 }} />
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7}>
+                <tr><td colSpan={9}>
                   <div className="empty-state">
                     <div className="empty-icon"><i className="fa-solid fa-inbox" /></div>
                     <h3>Không có hồ sơ nào</h3>
@@ -461,6 +511,36 @@ export default function DashboardPage() {
                     </td>
                     <td style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
                       {app.submitted_at ? new Date(app.submitted_at).toLocaleString('vi-VN') : '-'}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {app.payment_confirmed ? (
+                          <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>
+                            <i className="fa-solid fa-check-circle" /> Đã thu 85.000đ
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: '#dc2626' }}>
+                            <i className="fa-solid fa-clock" /> Chưa xác nhận
+                          </span>
+                        )}
+                        {app.invoice_status === 'issued' ? (
+                          <span style={{ fontSize: 11, color: '#0284c7' }}>
+                            <i className="fa-solid fa-receipt" /> HĐ: {app.invoice_no || 'Đã xuất'}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: '#9ca3af' }}>Chưa xuất HĐ</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      {app.handler_name ? (
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1e40af', background: '#eff6ff', padding: '2px 8px', borderRadius: 4 }}>
+                          <i className="fa-solid fa-user-doctor" style={{ marginRight: 4 }} />
+                          {app.handler_name}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>-</span>
+                      )}
                     </td>
                     <td style={{ fontSize: 13 }}>{METHOD_MAP[app.receive_method] || app.receive_method || '-'}</td>
                     <td><span className={`badge ${st.cls}`}>{st.text}</span></td>

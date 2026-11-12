@@ -5,13 +5,12 @@ import PublicHeader from '@/components/PublicHeader';
 import styles from './track.module.css';
 
 const STATUS_STEPS = [
-  { key: 'pending', icon: 'fa-paper-plane', label: 'Chưa tiếp nhận', desc: 'Hồ sơ đã được gửi thành công, đang chờ cán bộ tiếp nhận.' },
-  { key: 'received', icon: 'fa-inbox', label: 'Đã tiếp nhận', desc: 'Cán bộ đã tiếp nhận và xác nhận hồ sơ hợp lệ.' },
-  { key: 'processing', icon: 'fa-gears', label: 'Đang xử lý', desc: 'Hồ sơ đang được rà soát, đối chiếu thông tin tiêm chủng.' },
-  { key: 'completed', icon: 'fa-certificate', label: 'Đã có kết quả', desc: 'Quá trình phê duyệt hoàn tất. Giấy chứng nhận đã sẵn sàng.' },
+  { key: 'pending', icon: 'fa-paper-plane', label: '1. Nộp hồ sơ', desc: 'Hồ sơ đã được gửi thành công, chờ Kế toán xác nhận thanh toán.' },
+  { key: 'processing', icon: 'fa-gears', label: '2. PCBTN xử lý', desc: 'Kế toán đã xác nhận thu tiền & xuất HĐĐT. Khoa PCBTN đang đối chiếu tiêm chủng.' },
+  { key: 'completed', icon: 'fa-certificate', label: '3. Hoàn tất & Trả kết quả', desc: 'Đã hoàn tất. Giấy chứng nhận và Hóa đơn điện tử đã sẵn sàng.' },
 ];
 
-const STATUS_IDX = { pending: 0, received: 1, processing: 2, completed: 3 };
+const STATUS_IDX = { pending: 0, received: 1, processing: 1, completed: 2 };
 
 function TrackContent() {
   const searchParams = useSearchParams();
@@ -34,7 +33,6 @@ function TrackContent() {
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Không tìm thấy hồ sơ'); return; }
       setResult(data);
-      // cập nhật URL
       const url = new URL(window.location);
       url.searchParams.set('id', q);
       window.history.replaceState({}, '', url);
@@ -50,7 +48,7 @@ function TrackContent() {
   const methodLabel = {
     email: 'Nhận qua Email',
     postal: 'Nhận qua Bưu điện',
-    direct: 'Nhận trực tiếp tại CDC',
+    direct: 'Nhận trực tiếp tại CDC Đà Nẵng',
   };
 
   return (
@@ -60,7 +58,7 @@ function TrackContent() {
       <div className={styles.container}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <h2 style={{ fontSize: 28, marginBottom: 8 }}>Tra cứu tình trạng hồ sơ</h2>
-          <p>Nhập mã hồ sơ (CDC-XXXXXX) hoặc số CCCD để kiểm tra tiến độ xử lý</p>
+          <p>Nhập mã hồ sơ (CDC-XXXXXX) hoặc số CCCD/Hộ chiếu để kiểm tra tiến độ xử lý</p>
         </div>
 
         {/* Search Box */}
@@ -97,7 +95,7 @@ function TrackContent() {
                 <h3 style={{ fontSize: 20, color: 'var(--primary)' }}>{result.application.id}</h3>
               </div>
               <span className={`badge badge-${result.application.status}`} style={{ fontSize: 13, padding: '6px 14px' }}>
-                {STATUS_STEPS[currentIdx]?.label}
+                {STATUS_STEPS[currentIdx]?.label || result.application.status}
               </span>
             </div>
 
@@ -106,8 +104,13 @@ function TrackContent() {
               <div className={styles.infoGrid}>
                 {[
                   ['Người nộp', result.application.name],
+                  ['Số CCCD / Hộ chiếu', result.application.cccd],
                   ['Thời gian nộp', new Date(result.application.submitted_at).toLocaleString('vi-VN')],
                   ['Hình thức nhận KQ', methodLabel[result.application.receive_method] || result.application.receive_method],
+                  ['Lệ phí cấp phiếu', '85.000 VNĐ (BIDV: 5611147422)'],
+                  ['Trạng thái thu phí', result.application.payment_confirmed ? '✓ Đã xác nhận thu tiền' : 'Đang chờ đối chiếu biến động số dư'],
+                  ['Cán bộ Khoa PCBTN', result.application.handler_name ? `✓ ${result.application.handler_name}` : 'Đang phân công'],
+                  ['Trạng thái HĐĐT', result.application.invoice_status === 'issued' ? `✓ Đã phát hành (${result.application.invoice_no || 'HĐĐT'})` : 'Chờ kế toán xuất'],
                 ].map(([label, value]) => (
                   <div key={label} className={styles.infoItem}>
                     <span>{label}</span>
@@ -115,6 +118,27 @@ function TrackContent() {
                   </div>
                 ))}
               </div>
+
+              {/* Tải về kết quả (Chứng nhận & Hóa đơn) */}
+              {(result.application.certificate_url || result.application.invoice_url) && (
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 20, margin: '24px 0' }}>
+                  <h4 style={{ color: '#166534', fontSize: 16, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <i className="fa-solid fa-file-arrow-down" /> Kết quả và chứng từ của bạn đã sẵn sàng:
+                  </h4>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    {result.application.certificate_url && (
+                      <a href={result.application.certificate_url} target="_blank" rel="noreferrer" className="btn btn-success">
+                        <i className="fa-solid fa-certificate" /> Tải Giấy chứng nhận tiêm chủng (Bản scan)
+                      </a>
+                    )}
+                    {result.application.invoice_url && (
+                      <a href={result.application.invoice_url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ color: '#166534', borderColor: '#166534' }}>
+                        <i className="fa-solid fa-file-invoice-dollar" /> Tải Hóa đơn điện tử ({result.application.invoice_no || 'HĐĐT'})
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Timeline */}
               <h4 style={{ fontSize: 15, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -162,9 +186,9 @@ function TrackContent() {
                   <div>
                     <strong>Hồ sơ đã hoàn tất!</strong>
                     <p style={{ margin: '4px 0 0', color: 'inherit' }}>
-                      {result.application.receive_method === 'email' && 'Giấy chứng nhận đã được gửi qua email của bạn.'}
+                      {result.application.receive_method === 'email' && 'Giấy chứng nhận và hóa đơn đã được gửi qua email của bạn.'}
                       {result.application.receive_method === 'postal' && 'Giấy chứng nhận đang được gửi qua bưu điện đến địa chỉ của bạn.'}
-                      {result.application.receive_method === 'direct' && 'Vui lòng đến nhận trực tiếp tại CDC Đà Nẵng — 118 Lê Đình Lý.'}
+                      {result.application.receive_method === 'direct' && 'Vui lòng đến nhận trực tiếp tại Bộ phận Một cửa — CDC Đà Nẵng (118 Lê Đình Lý).'}
                     </p>
                   </div>
                 </div>
@@ -175,7 +199,7 @@ function TrackContent() {
       </div>
 
       <footer className="pub-footer" style={{ marginTop: 'auto' }}>
-        <p><strong>CDC Đà Nẵng</strong> — Cần hỗ trợ? Gọi <strong>0236 382 2779</strong></p>
+        <p><strong>CDC Đà Nẵng</strong> — 118 Lê Đình Lý, Thanh Khê, Đà Nẵng. Cần hỗ trợ? Gọi <strong>0236 382 2779</strong></p>
       </footer>
     </div>
   );

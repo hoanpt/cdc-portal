@@ -23,7 +23,10 @@ export default function SettingsPage() {
     bank_account: '',
     bank_name: '',
     payment_fee: '85000',
-    payment_desc: 'CDC '
+    payment_desc: 'CDC ',
+    zalo_token: '',
+    zalo_template_id: '',
+    zalo_notify_phones: ''
   });
 
   useEffect(() => {
@@ -234,6 +237,41 @@ export default function SettingsPage() {
               <div style={{ gridColumn: '1 / -1', marginTop: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
                   {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu cấu hình</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* Cấu hình Zalo OA */}
+        <div className="card" style={{ marginTop: 24 }}>
+          <div className="card-header">
+            <h3><i className="fa-solid fa-bell" style={{ color: '#0284c7', marginRight: 10 }} /> Cấu hình Thông báo Zalo OA</h3>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Gửi thông báo đẩy về máy người thu phí &amp; cán bộ tiếp nhận khi có hồ sơ mới</span>
+          </div>
+          <div className="card-body">
+            <form onSubmit={saveSettings} style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
+              <div className="form-group">
+                <label className="form-label">Zalo OA Access Token</label>
+                <input className="form-control" type="password" value={settings.zalo_token} onChange={e => setSettings({...settings, zalo_token: e.target.value})} placeholder="Nhập Access Token của Zalo Official Account..." />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">ZNS Template ID (Nếu sử dụng mẫu thông báo)</label>
+                <input className="form-control" value={settings.zalo_template_id} onChange={e => setSettings({...settings, zalo_template_id: e.target.value})} placeholder="VD: 312345" />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Số điện thoại cán bộ nhận thông báo (Phân cách bằng dấu phẩy)</label>
+                <input className="form-control" value={settings.zalo_notify_phones} onChange={e => setSettings({...settings, zalo_notify_phones: e.target.value})} placeholder="0905xxxxxx, 0914xxxxxx (SĐT Lê Thị Mỹ Phượng, cán bộ Khoa PCBTN...)" />
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                  Hệ thống sẽ tự động gửi tin nhắn báo có hồ sơ mới cùng thông tin người nộp, lệ phí 85.000đ BIDV tới các số điện thoại này.
+                </p>
+              </div>
+
+              <div style={{ marginTop: 10 }}>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu cấu hình Zalo OA</>}
                 </button>
               </div>
             </form>

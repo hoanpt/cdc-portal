@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import formidable from 'formidable';
 import fs from 'fs';
 import path from 'path';
 import getDb from '@/lib/db';
@@ -22,11 +21,13 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const q = searchParams.get('q');
+    const handler = searchParams.get('handler');
+    const invoiceStatus = searchParams.get('invoice_status');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = (page - 1) * limit;
 
-    let sql = `SELECT id, submitted_at, name, cccd, dob, gender, phone, email, address, receive_method, status, notes, certificate_id, package_date, gdrive_folder_id, created_at, updated_at FROM applications WHERE 1=1`;
+    let sql = `SELECT id, submitted_at, name, cccd, dob, gender, phone, email, address, receive_method, status, notes, certificate_id, package_date, gdrive_folder_id, handler_name, invoice_type, invoice_company_name, invoice_tax_code, invoice_budget_code, invoice_address, invoice_email, invoice_status, invoice_no, invoice_issued_at, invoice_issued_by, invoice_file_url, payment_confirmed, payment_confirmed_at, payment_confirmed_by, created_at, updated_at FROM applications WHERE 1=1`;
     const params = [];
 
     if (status && status !== 'all') {
@@ -34,13 +35,23 @@ export async function GET(request) {
       params.push(status);
     }
 
-    if (q) {
-      sql += ` AND (name LIKE ? OR cccd LIKE ? OR id LIKE ? OR phone LIKE ?)`;
-      const like = `%${q}%`;
-      params.push(like, like, like, like);
+    if (handler && handler !== 'all') {
+      sql += ` AND handler_name = ?`;
+      params.push(handler);
     }
 
-    const countSql = sql.replace('SELECT id, submitted_at, name, cccd, dob, gender, phone, email, address, receive_method, status, notes, certificate_id, package_date, gdrive_folder_id, created_at, updated_at', 'SELECT COUNT(*) as total');
+    if (invoiceStatus && invoiceStatus !== 'all') {
+      sql += ` AND invoice_status = ?`;
+      params.push(invoiceStatus);
+    }
+
+    if (q) {
+      sql += ` AND (name LIKE ? OR cccd LIKE ? OR id LIKE ? OR phone LIKE ? OR invoice_company_name LIKE ? OR invoice_tax_code LIKE ?)`;
+      const like = `%${q}%`;
+      params.push(like, like, like, like, like, like);
+    }
+
+    const countSql = sql.replace(/SELECT id, .*? FROM applications WHERE 1=1/, 'SELECT COUNT(*) as total FROM applications WHERE 1=1');
     const countResult = await db.get(countSql, ...params);
     const total = parseInt(countResult?.total ?? countResult?.count ?? 0, 10) || 0;
 
@@ -71,6 +82,14 @@ export async function POST(request) {
     const address = formData.get('address')?.trim();
     const receiveMethod = formData.get('receive_method') || 'direct';
     const notes = formData.get('notes')?.trim() || '';
+
+    // Thông tin hóa đơn điện tử
+    const invoiceType = formData.get('invoice_type') || 'personal';
+    const invoiceCompanyName = formData.get('invoice_company_name')?.trim() || null;
+    const invoiceTaxCode = formData.get('invoice_tax_code')?.trim() || null;
+    const invoiceBudgetCode = formData.get('invoice_budget_code')?.trim() || null;
+    const invoiceAddress = formData.get('invoice_address')?.trim() || null;
+    const invoiceEmail = formData.get('invoice_email')?.trim() || email || null;
 
     if (!name || !cccd || !phone) {
       return NextResponse.json({ error: 'Thiếu thông tin bắt buộc' }, { status: 400 });
@@ -192,12 +211,17 @@ export async function POST(request) {
 
     // Lưu vào DB
     await db.run(`
-      INSERT INTO applications (id, submitted_at, name, cccd, dob, gender, phone, email, address, receive_method, notes, files_json, gdrive_folder_id, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+      INSERT INTO applications (
+        id, submitted_at, name, cccd, dob, gender, phone, email, address, receive_method, notes,
+        files_json, gdrive_folder_id, status,
+        invoice_type, invoice_company_name, invoice_tax_code, invoice_budget_code, invoice_address, invoice_email, invoice_status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, 'unissued')
     `, 
       id, submittedAt, name, cccd, dob || null, gender || null, phone,
       email || null, address || null, receiveMethod, notes,
-      JSON.stringify(filesInfo), null
+      JSON.stringify(filesInfo), null,
+      invoiceType, invoiceCompanyName, invoiceTaxCode, invoiceBudgetCode, invoiceAddress, invoiceEmail
     );
 
     // Log trạng thái ban đầu
@@ -205,6 +229,19 @@ export async function POST(request) {
       INSERT INTO status_logs (application_id, old_status, new_status, changed_by, note)
       VALUES (?, null, 'pending', 'system', 'Hồ sơ mới được nộp trực tuyến')
     `, id);
+
+    // Kích hoạt thông báo Zalo OA không đồng bộ (không làm chậm phản hồi)
+    try {
+      const { sendZaloNotification } = require('@/lib/zalo');
+      sendZaloNotification({
+        id, name, cccd, phone, email,
+        invoice_type: invoiceType,
+        invoice_company_name: invoiceCompanyName,
+        invoice_tax_code: invoiceTaxCode
+      }).catch(errZalo => console.error('[Zalo Notification Error]', errZalo));
+    } catch (eZalo) {
+      console.warn('[Zalo OA]', eZalo.message);
+    }
 
     // Gửi email xác nhận
     const appForEmail = { id, name, cccd, email, submitted_at: submittedAt, receive_method: receiveMethod };

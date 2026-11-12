@@ -65,7 +65,7 @@ export async function PUT(request, { params }) {
 
     const { id } = await params;
     const body = await request.json();
-    const { status, notes, certificateData } = body;
+    const { status, notes, certificateData, handler_name, invoice_no, invoice_status } = body;
 
     const db = await getDb();
     const app = await db.get('SELECT * FROM applications WHERE id = ?', id);
@@ -83,6 +83,9 @@ export async function PUT(request, { params }) {
     const updates = { updated_at: now };
     if (status) updates.status = status;
     if (notes !== undefined) updates.notes = notes;
+    if (handler_name !== undefined) updates.handler_name = handler_name;
+    if (invoice_no !== undefined) updates.invoice_no = invoice_no;
+    if (invoice_status !== undefined) updates.invoice_status = invoice_status;
     if (certificateData) {
       const certId = `CNTH-${id.replace('CDC-', '')}-${Date.now().toString(36).toUpperCase()}`;
       updates.certificate_id = certId;

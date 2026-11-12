@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server';
 import getDb from '@/lib/db';
 
-// GET: Tra cứu hồ sơ theo mã (public)
+// GET: Tra cứu hồ sơ theo mã hoặc CCCD (public)
 export async function GET(request, { params }) {
   try {
     const { id } = await params;
-    if (!id) return NextResponse.json({ error: 'Thiếu mã hồ sơ' }, { status: 400 });
+    if (!id) return NextResponse.json({ error: 'Thiếu mã hồ sơ hoặc số CCCD' }, { status: 400 });
 
     const db = await getDb();
     // Tìm theo ID hoặc CCCD
     const app = await db.get(`
-      SELECT id, submitted_at, name, cccd, phone, receive_method, status, certificate_id, package_date, address
+      SELECT 
+        id, submitted_at, name, cccd, phone, receive_method, status, 
+        certificate_id, certificate_json, package_date, address,
+        handler_name, invoice_type, invoice_status, invoice_no, invoice_file_url, payment_confirmed
       FROM applications
       WHERE id = ? OR cccd = ?
       ORDER BY submitted_at DESC
@@ -18,7 +21,7 @@ export async function GET(request, { params }) {
     `, id.toUpperCase(), id);
 
     if (!app) {
-      return NextResponse.json({ error: 'Không tìm thấy hồ sơ với mã hoặc CCCD này' }, { status: 404 });
+      return NextResponse.json({ error: 'Không tìm thấy hồ sơ với mã hoặc số CCCD này' }, { status: 404 });
     }
 
     // Lấy timeline (status logs)
@@ -29,12 +32,23 @@ export async function GET(request, { params }) {
       ORDER BY changed_at ASC
     `, app.id);
 
+    let certUrl = null;
+    if (app.certificate_json) {
+      try {
+        const certData = typeof app.certificate_json === 'string' ? JSON.parse(app.certificate_json) : app.certificate_json;
+        certUrl = certData?.url || null;
+      } catch (e) {}
+    }
+
     // Mask thông tin nhạy cảm
     const masked = {
       ...app,
       name: maskName(app.name),
       phone: maskPhone(app.phone),
       cccd: maskCCCD(app.cccd),
+      certificate_url: certUrl,
+      invoice_url: app.invoice_file_url || null,
+      certificate_json: undefined // Không expose JSON nội bộ
     };
 
     return NextResponse.json({ application: masked, statusLogs: logs });
@@ -56,6 +70,6 @@ function maskPhone(phone) {
 }
 
 function maskCCCD(cccd) {
-  if (!cccd || cccd.length < 6) return cccd;
-  return cccd.slice(0, 3) + '****' + cccd.slice(-3);
+  if (!cccd || cccd.length < 4) return cccd;
+  return cccd.slice(0, 3) + '******' + cccd.slice(-3);
 }

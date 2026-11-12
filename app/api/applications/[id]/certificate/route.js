@@ -19,6 +19,7 @@ export async function POST(request, { params }) {
     const formData = await request.formData();
     const file = formData.get('file_certificate');
     const notes = formData.get('notes') || '';
+    const handlerName = formData.get('handler_name') || '';
 
     if (!file || !file.name) {
       return NextResponse.json({ error: 'Vui lòng đính kèm file chứng nhận' }, { status: 400 });
@@ -47,14 +48,15 @@ export async function POST(request, { params }) {
 
     await db.run(`
       UPDATE applications 
-      SET status = 'completed', certificate_id = ?, certificate_json = ?, package_date = ?, updated_at = ? 
+      SET status = 'completed', certificate_id = ?, certificate_json = ?, package_date = ?, handler_name = COALESCE(NULLIF(?, ''), handler_name), updated_at = ? 
       WHERE id = ?
-    `, certId, certificate_json, now.split('T')[0], now, id);
+    `, certId, certificate_json, now.split('T')[0], handlerName, now, id);
 
+    const logPerformer = handlerName ? `${handlerName} (Khoa PCBTN)` : token.username;
     await db.run(`
       INSERT INTO status_logs (application_id, old_status, new_status, changed_by, note)
       VALUES (?, ?, ?, ?, ?)
-    `, id, app.status, 'completed', token.username, notes || 'Đã cấp chứng nhận bản scan');
+    `, id, app.status, 'completed', logPerformer, notes ? `[Cán bộ: ${logPerformer}] ${notes}` : `Cán bộ ${logPerformer} hoàn tất cấp chứng nhận tiêm chủng`);
 
     // Email
     const updatedApp = await db.get('SELECT * FROM applications WHERE id = ?', id);
