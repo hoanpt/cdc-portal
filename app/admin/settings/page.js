@@ -27,6 +27,17 @@ export default function SettingsPage() {
 
   async function loadSettings() {
     try {
+      // Chỉ Admin mới có quyền truy cập Cấu hình hệ thống
+      const meRes = await fetch('/api/auth/me');
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        if (meData?.user?.role !== 'admin') {
+          alert('Tài khoản của bạn không có quyền truy cập Cấu hình hệ thống.');
+          router.push('/admin/dashboard');
+          return;
+        }
+      }
+
       const res = await fetch('/api/settings');
       if (res.status === 401 || res.status === 403) { router.push('/admin'); return; }
       if (res.ok) {

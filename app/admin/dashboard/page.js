@@ -138,6 +138,45 @@ export default function DashboardPage() {
   const [deleting, setDeleting]       = useState(false);
   const [downloadingZipId, setDownloadingZipId] = useState(null);
 
+  // Đổi mật khẩu modal state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState('');
+
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    setPwError('');
+    setPwSuccess('');
+
+    if (!pwForm.currentPassword) { setPwError('Vui lòng nhập mật khẩu hiện tại'); return; }
+    if (!pwForm.newPassword || pwForm.newPassword.length < 6) { setPwError('Mật khẩu mới phải có ít nhất 6 ký tự'); return; }
+    if (pwForm.newPassword !== pwForm.confirmPassword) { setPwError('Mật khẩu xác nhận không trùng khớp'); return; }
+
+    setPwSaving(true);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setPwSuccess('✅ Đổi mật khẩu thành công!');
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setPwSuccess('');
+      }, 1500);
+    } catch(err) {
+      setPwError(err.message);
+    } finally {
+      setPwSaving(false);
+    }
+  }
+
   useEffect(() => {
     fetch('/api/auth/me')
       .then(r => {
@@ -319,13 +358,35 @@ export default function DashboardPage() {
           <span style={{ fontSize: 11, background: '#1e3a8a', color: '#93c5fd', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>v2.1.0</span>
         </div>
         <div className={styles.adminNavUser}>
-          <Link href="/admin/settings" className="btn btn-ghost btn-sm" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
-            <i className="fa-solid fa-gear" /> Cấu hình
-          </Link>
-          <Link href="/admin/accounts" className="btn btn-ghost btn-sm" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
-            <i className="fa-solid fa-users" /> Tài khoản
-          </Link>
-          {user && <span><i className="fa-solid fa-circle-user" /> {user.fullName || user.username}</span>}
+          {user?.role === 'admin' && (
+            <>
+              <Link href="/admin/settings" className="btn btn-ghost btn-sm" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+                <i className="fa-solid fa-gear" /> Cấu hình
+              </Link>
+              <Link href="/admin/accounts" className="btn btn-ghost btn-sm" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+                <i className="fa-solid fa-users" /> Tài khoản
+              </Link>
+            </>
+          )}
+
+          <button 
+            className="btn btn-ghost btn-sm" 
+            onClick={() => { setPwError(''); setPwSuccess(''); setShowPasswordModal(true); }} 
+            style={{ color: '#93c5fd', fontSize: 13 }}
+            title="Đổi mật khẩu tài khoản của bạn"
+          >
+            <i className="fa-solid fa-key" /> Đổi mật khẩu
+          </button>
+
+          {user && (
+            <span style={{ fontSize: 13, color: 'white', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <i className="fa-solid fa-circle-user" /> {user.fullName || user.username}
+              <span style={{ fontSize: 11, background: user.role === 'accountant' ? '#047857' : user.role === 'admin' ? '#1e3a8a' : '#475569', color: 'white', padding: '1px 6px', borderRadius: 4 }}>
+                {user.role === 'accountant' ? 'Thu phí' : user.role === 'admin' ? 'Admin' : 'Khoa PCBTN'}
+              </span>
+            </span>
+          )}
+
           <button className="btn btn-ghost btn-sm" onClick={logout} style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>
             <i className="fa-solid fa-right-from-bracket" /> Thoát
           </button>
@@ -570,6 +631,102 @@ export default function DashboardPage() {
           </table>
         </div>
       </div>
+
+      {/* MODAL ĐỔI MẬT KHẨU */}
+      {showPasswordModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 12, maxWidth: 440, width: '100%',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="fa-solid fa-key" style={{ color: 'var(--primary)' }} />
+                Đổi mật khẩu tài khoản
+              </h3>
+              <button 
+                onClick={() => setShowPasswordModal(false)} 
+                style={{ background: 'none', border: 'none', fontSize: 18, color: '#64748b', cursor: 'pointer' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword} style={{ padding: 20 }}>
+              {pwError && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '10px 14px', borderRadius: 6, fontSize: 13, marginBottom: 14 }}>
+                  {pwError}
+                </div>
+              )}
+              {pwSuccess && (
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', padding: '10px 14px', borderRadius: 6, fontSize: 13, marginBottom: 14 }}>
+                  {pwSuccess}
+                </div>
+              )}
+
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label className="form-label" style={{ fontSize: 13, fontWeight: 600 }}>Mật khẩu hiện tại <span className="required">*</span></label>
+                <input 
+                  type="password" 
+                  className="form-control" 
+                  value={pwForm.currentPassword} 
+                  onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })} 
+                  placeholder="Nhập mật khẩu hiện tại..." 
+                  required 
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label className="form-label" style={{ fontSize: 13, fontWeight: 600 }}>Mật khẩu mới (tối thiểu 6 ký tự) <span className="required">*</span></label>
+                <input 
+                  type="password" 
+                  className="form-control" 
+                  value={pwForm.newPassword} 
+                  onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })} 
+                  placeholder="Nhập mật khẩu mới..." 
+                  required 
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 20 }}>
+                <label className="form-label" style={{ fontSize: 13, fontWeight: 600 }}>Xác nhận mật khẩu mới <span className="required">*</span></label>
+                <input 
+                  type="password" 
+                  className="form-control" 
+                  value={pwForm.confirmPassword} 
+                  onChange={e => setPwForm({ ...pwForm, confirmPassword: e.target.value })} 
+                  placeholder="Nhập lại mật khẩu mới..." 
+                  required 
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  onClick={() => setShowPasswordModal(false)}
+                  disabled={pwSaving}
+                >
+                  Hủy bỏ
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  disabled={pwSaving}
+                >
+                  {pwSaving ? <><span className="spinner" /> Đang cập nhật...</> : <><i className="fa-solid fa-check" /> Cập nhật mật khẩu</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
