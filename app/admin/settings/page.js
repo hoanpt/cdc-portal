@@ -8,8 +8,6 @@ export default function SettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testingMobifone, setTestingMobifone] = useState(false);
-  const [mobifoneTestResult, setMobifoneTestResult] = useState(null);
   const [settings, setSettings] = useState({
     app_url: 'http://localhost:3000',
     smtp_host: '',
@@ -20,18 +18,7 @@ export default function SettingsPage() {
     smtp_from: '"CDC Đà Nẵng" <noreply@cdc-danang.gov.vn>',
     zalo_token: '',
     zalo_template_id: '',
-    zalo_notify_phones: '',
-    mobifone_api_url: 'https://api.mobifoneinvoice.vn',
-    mobifone_username: '',
-    mobifone_password: '',
-    mobifone_tax_code: '0401999999',
-    mobifone_ma_dvcs: 'VP',
-    mobifone_cctbao_id: '',
-    mobifone_template_code: '1/001',
-    mobifone_series: '1C24TDD',
-    mobifone_auto_sign_hsm: 'true',
-    mobifone_gui_cqt: 'Notsend',
-    mobifone_enabled: 'false'
+    zalo_notify_phones: ''
   });
 
   useEffect(() => {
@@ -77,39 +64,6 @@ export default function SettingsPage() {
       alert('Lỗi: ' + e.message);
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleTestMobifone() {
-    setTestingMobifone(true);
-    setMobifoneTestResult(null);
-    try {
-      const res = await fetch('/api/settings/test-mobifone', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setMobifoneTestResult({
-          success: false,
-          error: data.error || 'Kiểm tra kết nối thất bại'
-        });
-      } else {
-        setMobifoneTestResult({
-          success: true,
-          message: data.message,
-          maDvcs: data.maDvcs,
-          seriesList: data.seriesList || []
-        });
-      }
-    } catch (err) {
-      setMobifoneTestResult({
-        success: false,
-        error: 'Lỗi mạng hoặc máy chủ không phản hồi: ' + err.message
-      });
-    } finally {
-      setTestingMobifone(false);
     }
   }
 
@@ -274,213 +228,6 @@ export default function SettingsPage() {
               <div style={{ marginTop: 10 }}>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
                   {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu cấu hình Zalo OA</>}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        {/* 5. CẤU HÌNH HÓA ĐƠN ĐIỆN TỬ MOBIFONE INVOICE (TT78/NĐ 123) */}
-        <div className="card" style={{ marginTop: 24, border: '1.5px solid #0284c7' }}>
-          <div className="card-header" style={{ background: '#f0f9ff' }}>
-            <div>
-              <h3 style={{ color: '#0369a1', margin: 0 }}>
-                <i className="fa-solid fa-bolt" style={{ color: '#0284c7', marginRight: 10 }} />
-                Kết nối API Hóa đơn điện tử MobiFone (MobiFone Invoice TT78)
-              </h3>
-              <p style={{ fontSize: 13, color: '#0284c7', margin: '4px 0 0' }}>
-                Tích hợp chuẩn Thông tư 78/2021/TT-BTC &amp; Nghị định 123/2020/NĐ-CP
-              </p>
-            </div>
-            <span className="badge" style={{ background: settings.mobifone_enabled === 'true' ? '#10b981' : '#94a3b8', color: 'white' }}>
-              {settings.mobifone_enabled === 'true' ? 'API đang bật' : 'Mô phỏng tại chỗ'}
-            </span>
-          </div>
-          <div className="card-body">
-            {/* Kết quả kiểm tra kết nối */}
-            {mobifoneTestResult && (
-              <div style={{
-                marginBottom: 18,
-                padding: '12px 16px',
-                borderRadius: 8,
-                background: mobifoneTestResult.success ? '#ecfdf5' : '#fef2f2',
-                border: `1px solid ${mobifoneTestResult.success ? '#a7f3d0' : '#fecaca'}`,
-                color: mobifoneTestResult.success ? '#065f46' : '#991b1b',
-                fontSize: 13.5
-              }}>
-                <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <i className={`fa-solid ${mobifoneTestResult.success ? 'fa-circle-check' : 'fa-circle-exclamation'}`} />
-                  {mobifoneTestResult.success ? 'Kiểm tra kết nối thành công!' : 'Kết nối thất bại:'}
-                </div>
-                <div>{mobifoneTestResult.message || mobifoneTestResult.error}</div>
-                {mobifoneTestResult.seriesList && mobifoneTestResult.seriesList.length > 0 && (
-                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #a7f3d0' }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#047857', marginBottom: 6 }}>
-                      Dải ký hiệu HĐĐT tìm thấy trên MobiFone (Bấm vào để tự động chọn):
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {mobifoneTestResult.seriesList.map((s, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setSettings(prev => ({ ...prev, mobifone_series: s.khieu, mobifone_cctbao_id: s.cctbao_id }))}
-                          style={{
-                            background: '#dcfce7',
-                            border: '1px solid #86efac',
-                            padding: '4px 10px',
-                            borderRadius: 6,
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: '#15803d',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Ký hiệu: {s.khieu} (Mã: {s.cctbao_id.slice(0, 8)}...)
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <form onSubmit={saveSettings} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">MobiFone Invoice API URL</label>
-                <input 
-                  className="form-control" 
-                  value={settings.mobifone_api_url} 
-                  onChange={e => setSettings({...settings, mobifone_api_url: e.target.value})} 
-                  placeholder="https://api.mobifoneinvoice.vn hoặc https://{MST}.mobifoneinvoice.vn" 
-                />
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Địa chỉ API cổng HĐĐT MobiFone của đơn vị (Mặc định: <code>https://api.mobifoneinvoice.vn</code> hoặc <code>https://MST.mobifoneinvoice.vn</code>).
-                </p>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Tài khoản kết nối API (Username) <span className="required">*</span></label>
-                <input 
-                  className="form-control" 
-                  value={settings.mobifone_username} 
-                  onChange={e => setSettings({...settings, mobifone_username: e.target.value})} 
-                  placeholder="Tài khoản API MobiFone..." 
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Mật khẩu kết nối API (Password) <span className="required">*</span></label>
-                <input 
-                  className="form-control" 
-                  type="password" 
-                  value={settings.mobifone_password} 
-                  onChange={e => setSettings({...settings, mobifone_password: e.target.value})} 
-                  placeholder="Mật khẩu API MobiFone..." 
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Mã số thuế bên bán (CDC Đà Nẵng)</label>
-                <input 
-                  className="form-control" 
-                  value={settings.mobifone_tax_code} 
-                  onChange={e => setSettings({...settings, mobifone_tax_code: e.target.value})} 
-                  placeholder="0401999999" 
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Mã đơn vị cơ sở (ma_dvcs)</label>
-                <input 
-                  className="form-control" 
-                  value={settings.mobifone_ma_dvcs} 
-                  onChange={e => setSettings({...settings, mobifone_ma_dvcs: e.target.value})} 
-                  placeholder="VP" 
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Mẫu số hóa đơn (Template Code)</label>
-                <input 
-                  className="form-control" 
-                  value={settings.mobifone_template_code} 
-                  onChange={e => setSettings({...settings, mobifone_template_code: e.target.value})} 
-                  placeholder="1/001" 
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Ký hiệu hóa đơn (Series)</label>
-                <input 
-                  className="form-control" 
-                  value={settings.mobifone_series} 
-                  onChange={e => setSettings({...settings, mobifone_series: e.target.value})} 
-                  placeholder="1C24TDD hoặc C26TDD" 
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">ID dải ký hiệu (cctbao_id / qlkhsdung_id)</label>
-                <input 
-                  className="form-control" 
-                  value={settings.mobifone_cctbao_id} 
-                  onChange={e => setSettings({...settings, mobifone_cctbao_id: e.target.value})} 
-                  placeholder="Để trống hệ thống sẽ tự động tra cứu từ API RF00059" 
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Ký số điện tử bằng HSM MobiFone</label>
-                <select 
-                  className="form-control" 
-                  value={settings.mobifone_auto_sign_hsm} 
-                  onChange={e => setSettings({...settings, mobifone_auto_sign_hsm: e.target.value})}
-                >
-                  <option value="true">Tự động ký số HSM (SaveAndSignHSMHoadon78)</option>
-                  <option value="false">Lập hóa đơn ở trạng thái Chờ ký (SaveListHoadon78)</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Chế độ gửi Cơ quan Thuế (guiCQT)</label>
-                <select 
-                  className="form-control" 
-                  value={settings.mobifone_gui_cqt} 
-                  onChange={e => setSettings({...settings, mobifone_gui_cqt: e.target.value})}
-                >
-                  <option value="Notsend">Notsend (Lưu tạm và ký, chưa gửi thuế ngay)</option>
-                  <option value="">Gửi thẳng lên Cơ quan Thuế (CQT)</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Trạng thái kết nối API</label>
-                <select 
-                  className="form-control" 
-                  value={settings.mobifone_enabled} 
-                  onChange={e => setSettings({...settings, mobifone_enabled: e.target.value})}
-                >
-                  <option value="false">Mô phỏng tại chỗ (Simulator / Dự phòng an toàn)</option>
-                  <option value="true">Bật kết nối API thực tế đến cổng MobiFone Invoice</option>
-                </select>
-              </div>
-
-              <div style={{ gridColumn: '1 / -1', marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button type="submit" className="btn btn-primary" disabled={saving} style={{ background: '#0284c7' }}>
-                  {saving ? <><span className="spinner" /> Đang lưu...</> : <><i className="fa-solid fa-save" /> Lưu cấu hình MobiFone Invoice</>}
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn-secondary" 
-                  onClick={handleTestMobifone} 
-                  disabled={testingMobifone}
-                  style={{ background: '#0f172a', color: 'white' }}
-                >
-                  {testingMobifone ? (
-                    <><span className="spinner" /> Đang kiểm tra kết nối...</>
-                  ) : (
-                    <><i className="fa-solid fa-network-wired" /> Kiểm tra kết nối MobiFone</>
-                  )}
                 </button>
               </div>
             </form>

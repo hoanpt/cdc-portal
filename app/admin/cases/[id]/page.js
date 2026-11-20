@@ -50,34 +50,6 @@ export default function CaseDetailPage({ params }) {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
-  const [issuingMobifone, setIssuingMobifone] = useState(false);
-
-  // Kế toán: Xuất HĐĐT MobiFone tự động (1-Click)
-  async function handleAutoMobifoneInvoice() {
-    if (isStaff) {
-      alert('Chức năng này dành riêng cho Kế toán thu phí (Lê Thị Mỹ Phượng).');
-      return;
-    }
-    if (!confirm(`Xác nhận kết nối xuất HĐĐT MobiFone cho khách hàng "${app.name}" với mức phí 85.000 VNĐ và tự động chuyển hồ sơ qua Khoa PCBTN?`)) {
-      return;
-    }
-
-    setIssuingMobifone(true);
-    try {
-      const res = await fetch(`/api/applications/${id}/mobifone-invoice`, {
-        method: 'POST'
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi phát hành HĐĐT MobiFone');
-
-      alert(`✅ ${data.message}`);
-      loadApp();
-    } catch(err) {
-      alert('Lỗi: ' + err.message);
-    } finally {
-      setIssuingMobifone(false);
-    }
-  }
 
   async function handleChangePassword(e) {
     e.preventDefault();
@@ -206,11 +178,6 @@ export default function CaseDetailPage({ params }) {
   async function completeAndReturnToCustomer() {
     if (isAccountant) {
       alert('Tài khoản Thu phí chỉ thực hiện Bước 1 (xác nhận tiền & xuất HĐĐT). Bước 2 (cấp chứng nhận) thuộc thẩm quyền của Cán bộ Khoa PCBTN.');
-      return;
-    }
-
-    if (!certFile && (!app.certificate_json || !app.certificate_json.url)) {
-      alert('Vui lòng chọn file bản scan Giấy chứng nhận (PDF/JPG/PNG) trước khi gửi trả cho khách hàng');
       return;
     }
 
@@ -453,9 +420,15 @@ export default function CaseDetailPage({ params }) {
                   Bước 1 do <strong>Kế toán thu phí (Lê Thị Mỹ Phượng)</strong> phụ trách. Cán bộ Khoa PCBTN thực hiện Bước 2 sau khi kế toán xác nhận tiền.
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                  Kế toán kiểm tra tiền tài khoản BIDV <strong>5611147422</strong>. Sau khi có tiền, xuất HĐĐT, đính kèm file vào đây và bấm nút bên dưới để chuyển tiếp qua Khoa PCBTN.
-                </p>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px', fontSize: 13 }}>
+                  <p style={{ margin: '0 0 6px', fontWeight: 600, color: '#1e293b' }}>
+                    <i className="fa-solid fa-circle-info" style={{ color: '#2563eb', marginRight: 6 }} />
+                    Hướng dẫn xuất hóa đơn thủ công:
+                  </p>
+                  <p style={{ margin: 0, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                    Kế toán kiểm tra tiền về tài khoản BIDV <strong>5611147422</strong>. Sau khi có tiền, tiến hành xuất hóa đơn thủ công theo thông tin người mua ở khối trên, nhập Số HĐĐT và đính kèm file HĐĐT (PDF/ảnh) vào đây rồi bấm nút chuyển tiếp qua Khoa PCBTN.
+                  </p>
+                </div>
               )}
 
               {app.payment_confirmed ? (
@@ -465,29 +438,6 @@ export default function CaseDetailPage({ params }) {
                   {app.invoice_no && <span> (HĐĐT: <strong>{app.invoice_no}</strong>)</span>}
                 </div>
               ) : null}
-
-              {!isStaff && (
-                <div style={{ padding: '12px 16px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <i className="fa-solid fa-bolt" style={{ color: '#0284c7' }} />
-                      Xuất HĐĐT MobiFone tự động (1-Click)
-                    </div>
-                    <div style={{ fontSize: 12, color: '#0284c7', marginTop: 2 }}>
-                      Tự động điền thông tin khách hàng, xuất HĐĐT 85.000đ và chuyển thẳng hồ sơ qua Khoa PCBTN
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={handleAutoMobifoneInvoice}
-                    disabled={issuingMobifone}
-                    style={{ background: '#0284c7', color: 'white', fontWeight: 600, border: 'none', padding: '7px 14px', borderRadius: 6, cursor: 'pointer' }}
-                  >
-                    {issuingMobifone ? <><span className="spinner" /> Đang xuất HĐ...</> : <><i className="fa-solid fa-bolt" /> Xuất HĐ MobiFone</>}
-                  </button>
-                </div>
-              )}
 
               <div className="form-group">
                 <label className="form-label">Số Hóa đơn điện tử (nếu có)</label>
@@ -623,7 +573,9 @@ export default function CaseDetailPage({ params }) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Chọn File Giấy chứng nhận bản scan (PDF/Ảnh) <span className="required">*</span></label>
+                <label className="form-label">
+                  Chọn File Giấy chứng nhận bản scan (PDF/Ảnh) <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Không bắt buộc)</span>
+                </label>
                 <input 
                   className="form-control" 
                   type="file" 
@@ -636,6 +588,9 @@ export default function CaseDetailPage({ params }) {
                     ✓ Đã có Giấy chứng nhận trên hệ thống ({app.certificate_id}). Chọn file mới nếu muốn cập nhật.
                   </div>
                 )}
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Trường này không bắt buộc. Cán bộ có thể đính kèm file scan hoặc hoàn tất trả kết quả trực tiếp cho khách hàng.
+                </div>
               </div>
 
               <div className="form-group">
